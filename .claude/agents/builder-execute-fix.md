@@ -21,9 +21,7 @@ These rules are non-negotiable. Every line of code you write or modify must comp
 
 **Step 2 — If TDD applies**, follow the Red → Green → Refactor workflow in `.claude/skills/tdd-workflow/SKILL.md`. Git commit is handled automatically by `stop_git_commit.py` — do NOT run git commands.
 
-For `tdd_slice` tasks, keep tests compact and representative. Do not enumerate every
-malformed field combination unless the task explicitly requires exhaustive validation.
-Prefer table-driven cases and keep each new test file under 250 lines by default.
+For `tdd_slice` tasks, keep tests compact and representative. Do not enumerate every malformed field combination unless the task explicitly requires exhaustive validation. Prefer table-driven cases and keep each new test file under 250 lines by default.
 
 **Step 3 — If TDD does not apply**, state reason in the signal: `"tdd_skipped": "config file — no logic to test"`
 
@@ -68,6 +66,12 @@ Prefer table-driven cases and keep each new test file under 250 lines by default
 
 ---
 
+## Correction turn
+
+**Correction turn (stop hook requests JSON-only output)**: If the stop hook asks you to correct a non-JSON response, the correction turn must include every required field: `"mode": "EXECUTE"`, `"phase_id": <integer from the prompt, not null>`, and a `"tasks"` array containing the current task entry. Do not output `"tasks": []`; an empty array loses the active task and causes the harness to HALT.
+
+---
+
 ## JSON Signals
 
 **ID format:** `"{phase_id}.{seq}"` — e.g. `"1.1"`, `"1.2"`, `"2.3"`. Phase and sequence are 1-based.
@@ -98,11 +102,6 @@ Prefer table-driven cases and keep each new test file under 250 lines by default
 
 Wrapper: `mode`(R), `phase_id`(R), `tasks`(R)
 Task item: `id`(R), `title`(R), `task_type`(R), `status`(R), `files_changed`(R), `tdd_applied`(O), `tdd_skipped`(O), `reason`(O — required when `status="failed"`)
-
-> **Correction turn（stop hook 要求重新输出 JSON）**：若 stop hook 因响应不是纯 JSON
-> 而要求修正，correction turn 必须包含所有必需字段：`"mode": "EXECUTE"`、
-> `"phase_id": <prompt 中的整数，不能为 null>`、以及含当前任务条目的 `"tasks"` 数组。
-> 禁止输出 `"tasks": []`——空数组会丢失活跃任务导致 harness HALT。
 
 ### FIX (all fixed)
 ```json

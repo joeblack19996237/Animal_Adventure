@@ -1,11 +1,6 @@
 # TASK_BUILD mode
 
-TASK_BUILD is a classification-only mode. You must return a complete, non-empty
-task plan. The harness accepts only `status: "complete"`; it rejects
-`"task_list_created"`, missing/null status, empty `tasks`, duplicate task ids,
-wrong phase-id prefixes, unknown `tdd_mode` values, and tasks missing required
-fields. Whether tasks exist and contain required fields will be verified by the
-harness.
+TASK_BUILD is a classification-only mode. You must return a complete, non-empty task plan. The harness accepts only `status: "complete"`; it rejects`"task_list_created"`, missing/null status, empty `tasks`, duplicate task ids, wrong phase-id prefixes, unknown `tdd_mode` values, and tasks missing required fields. Whether tasks exist and contain required fields will be verified by the harness.
 
 For each task, produce three required fields and one optional field:
 
@@ -16,16 +11,13 @@ For each task, produce three required fields and one optional field:
 
 ## TDD task ordering
 
-For every TDD-applicable capability in development phases (Phase 2+), generate one
-executable task with `tdd_mode: "tdd_slice"`. A `tdd_slice` task performs the full
-Red → Green → Refactor loop in one Claude subprocess:
+For every TDD-applicable capability in development phases (Phase 2+), generate one executable task with `tdd_mode: "tdd_slice"`. A `tdd_slice` task performs the full Red → Green → Refactor loop in one Claude subprocess:
 
 1. Write the smallest focused failing tests for the capability.
 2. Implement the production code that makes those tests pass.
 3. Run the focused tests and compile/type checks before emitting the signal.
 
-Do not generate separate `unit_test` Claude tasks in default mode. The harness runs
-local verification after each completed `tdd_slice`.
+Do not generate separate `unit_test` Claude tasks in default mode. The harness runs local verification after each completed `tdd_slice`.
 
 Use `tdd_mode: "exempt"` (with non-null `tdd_skipped`) for DDL files, config files, and static assets. These may appear anywhere in the task list and do not affect triplet ordering.
 
@@ -33,19 +25,13 @@ Use `tdd_mode: "exempt"` (with non-null `tdd_skipped`) for DDL files, config fil
 
 **Integration and e2e phases**: All tasks in integration and e2e phases **must** use `tdd_mode: "exempt"` with a `tdd_skipped` reason explaining why the TDD triplet does not apply (e.g., `"integration test — no TDD triplet required"`). The Stop hook enforces `tdd_skipped` is present on every exempt task.
 
-Every task in every phase **must** include a `tdd_mode` field. The Stop hook validates
-that development phases use `tdd_slice` or a justified `exempt` task unless legacy
-triplet mode is explicitly enabled in harness config.
+Every task in every phase **must** include a `tdd_mode` field. The Stop hook validates that development phases use `tdd_slice` or a justified `exempt`task unless legacy triplet mode is explicitly enabled in harness config.
 
-Before adding a task, compare it against completed work listed in the prompt. Do not
-create tasks for capabilities already satisfied by completed tracked files. If a prior
-phase already implemented most of the capability, create one small extension task or
-omit it if no change is needed.
+Before adding a task, compare it against completed work listed in the prompt. Do not create tasks for capabilities already satisfied by completed tracked files. If a prior phase already implemented most of the capability, create one small extension task or omit it if no change is needed.
 
 ## Task granularity budget
 
-A `tdd_slice` must be small enough to finish in one EXECUTE subprocess without
-large-output correction turns. Prefer focused tasks over broad umbrella tasks.
+A `tdd_slice` must be small enough to finish in one EXECUTE subprocess without large-output correction turns. Prefer focused tasks over broad umbrella tasks.
 
 Each `tdd_slice` should normally satisfy all of these limits:
 
@@ -69,13 +55,9 @@ Good split pattern:
 - Edge-case task: concurrency, restart recovery, idempotency, orphan cleanup, notification ordering.
 - Integration task: cross-service or end-to-end behavior.
 
-Do not over-split into trivial one-assertion tasks. A good task should still deliver
-a meaningful committed slice that passes focused verification.
+Do not over-split into trivial one-assertion tasks. A good task should still deliver a meaningful committed slice that passes focused verification.
 
-If a phase needs more than `max_tasks_per_development_phase`, do not force all work
-into oversized tasks. Return the best focused task list within the limit and keep
-lower-priority edge cases out of the current phase, or create explicit edge-case
-tasks only when there is room.
+If a phase needs more than `max_tasks_per_development_phase`, do not force all work into oversized tasks. Return the best focused task list within the limit and keep lower-priority edge cases out of the current phase, or create explicit edge-case tasks only when there is room.
 
 ---
 
