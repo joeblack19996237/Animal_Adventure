@@ -1051,6 +1051,68 @@ def test_handle_executing_rejects_missing_active_task_in_signal(
     assert task["status"] == "error"
 
 
+def test_execute_patches_empty_signal_tasks_and_continues(
+    sample_state, sample_profile, sample_config, monkeypatch, caplog
+):
+    import logging
+
+    from harness import HarnessState
+
+    sample_state["phases"][0]["tasks"][0]["status"] = "pending"
+    save_state(sample_state)
+    execute_result = {
+        "signal": {"phase_id": 1, "mode": "EXECUTE", "tasks": []},
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }
+
+    monkeypatch.setattr(agents, "execute", lambda *a, **kw: execute_result)
+    monkeypatch.setattr(
+        ph_mod.subprocess,
+        "run",
+        lambda *a, **kw: MagicMock(returncode=0, stdout="sha\n"),
+    )
+    monkeypatch.setattr(ph_mod, "verify_execution", lambda *a, **kw: [])
+    monkeypatch.setattr(ph_mod, "log_usage", lambda **kw: None)
+    harness = _make_harness(sample_config)
+    harness.phase_type_for.return_value = "development"
+
+    with caplog.at_level(logging.WARNING):
+        result = handle_executing(
+            harness, sample_state, phase_id=1, profile=sample_profile
+        )
+
+    assert result == HarnessState.REVIEWING
+    assert "correction turn" in caplog.text
+    task = sample_state["phases"][0]["tasks"][0]
+    assert task["status"] == "complete"
+
+
+def test_execute_halts_on_nonempty_wrong_task_ids(
+    sample_state, sample_profile, sample_config, monkeypatch
+):
+    sample_state["phases"][0]["tasks"][0]["status"] = "pending"
+    save_state(sample_state)
+
+    monkeypatch.setattr(
+        agents,
+        "execute",
+        lambda *a, **kw: _make_execute_result(phase_id=1, task_id="1.2"),
+    )
+    monkeypatch.setattr(
+        ph_mod.subprocess,
+        "run",
+        lambda *a, **kw: MagicMock(returncode=0, stdout="sha\n"),
+    )
+    harness = _make_harness(sample_config)
+    harness.phase_type_for.return_value = "development"
+
+    with pytest.raises(SystemExit):
+        handle_executing(harness, sample_state, phase_id=1, profile=sample_profile)
+
+    task = sample_state["phases"][0]["tasks"][0]
+    assert task["status"] == "error"
+
+
 def test_handle_executing_ignores_extra_task_ids_in_signal(
     sample_state, sample_profile, sample_config, monkeypatch
 ):

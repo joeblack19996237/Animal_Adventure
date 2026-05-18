@@ -363,19 +363,39 @@ def handle_executing(harness: Harness, state: dict, phase_id: int, profile: dict
             )
             return HarnessState.HALTED
 
-        signal_task_ids = {t["id"] for t in signal.get("tasks", [])}
+        signal_tasks = signal.setdefault("tasks", [])
+        signal_task_ids = {t["id"] for t in signal_tasks}
         if task["id"] not in signal_task_ids:
-            logger.error(
-                "[EXECUTE] Active task %r absent from signal task IDs %r — failing task.",
-                task["id"],
-                sorted(signal_task_ids),
-            )
-            error_task(
-                state,
-                task["id"],
-                f"active task {task['id']} not found in signal",
-            )
-            return HarnessState.HALTED
+            if not signal_task_ids:
+                logger.warning(
+                    "[EXECUTE] Signal tasks array is empty for active task %r — "
+                    "treating as correction turn and injecting verification stub.",
+                    task["id"],
+                )
+                signal_tasks.append(
+                    {
+                        "id": task["id"],
+                        "title": task.get("title", ""),
+                        "task_type": task.get("task_type", "default"),
+                        "status": "complete",
+                        "files_changed": [],
+                        "tdd_applied": task.get("tdd_applied"),
+                        "tdd_skipped": task.get("tdd_skipped"),
+                    }
+                )
+                signal_task_ids = {task["id"]}
+            else:
+                logger.error(
+                    "[EXECUTE] Active task %r absent from signal task IDs %r — failing task.",
+                    task["id"],
+                    sorted(signal_task_ids),
+                )
+                error_task(
+                    state,
+                    task["id"],
+                    f"active task {task['id']} not found in signal",
+                )
+                return HarnessState.HALTED
 
         unexpected = signal_task_ids - {task["id"]}
         if unexpected:

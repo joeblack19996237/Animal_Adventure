@@ -448,6 +448,7 @@ def execute(
         + " "
         + _EXISTING_TRACKED_NOOP_INSTRUCTION
         + f' Your JSON signal must include "phase_id": {phase_id} (integer, not null).'
+        + f' Your JSON signal tasks array must contain an entry with "id": "{task["id"]}".'
         + _JSON_SIGNAL_SUFFIX
     )
     timeout = compute_timeout(

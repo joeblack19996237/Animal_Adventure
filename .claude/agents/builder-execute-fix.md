@@ -99,6 +99,11 @@ Prefer table-driven cases and keep each new test file under 250 lines by default
 Wrapper: `mode`(R), `phase_id`(R), `tasks`(R)
 Task item: `id`(R), `title`(R), `task_type`(R), `status`(R), `files_changed`(R), `tdd_applied`(O), `tdd_skipped`(O), `reason`(O — required when `status="failed"`)
 
+> **Correction turn（stop hook 要求重新输出 JSON）**：若 stop hook 因响应不是纯 JSON
+> 而要求修正，correction turn 必须包含所有必需字段：`"mode": "EXECUTE"`、
+> `"phase_id": <prompt 中的整数，不能为 null>`、以及含当前任务条目的 `"tasks"` 数组。
+> 禁止输出 `"tasks": []`——空数组会丢失活跃任务导致 harness HALT。
+
 ### FIX (all fixed)
 ```json
 {
