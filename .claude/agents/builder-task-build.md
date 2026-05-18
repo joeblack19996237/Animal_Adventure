@@ -42,6 +42,41 @@ create tasks for capabilities already satisfied by completed tracked files. If a
 phase already implemented most of the capability, create one small extension task or
 omit it if no change is needed.
 
+## Task granularity budget
+
+A `tdd_slice` must be small enough to finish in one EXECUTE subprocess without
+large-output correction turns. Prefer focused tasks over broad umbrella tasks.
+
+Each `tdd_slice` should normally satisfy all of these limits:
+
+- Covers one cohesive capability or one service method family, not an entire service.
+- Adds or modifies at most one primary test file and one primary production module.
+- Covers no more than 4 independent behavioral scenarios.
+- Does not require both new infrastructure/scheduler/background worker code and many edge cases in the same task.
+- Keeps the expected new test file under 250 lines unless the phase explicitly requires a larger acceptance suite.
+- Can be implemented, tested, committed, and signaled within the configured EXECUTE timeout.
+
+Split the task when any of these are true:
+
+- The description contains more than 4-5 distinct covering/verifying clauses.
+- It mixes core happy-path behavior with concurrency, restart recovery, orphan cleanup, notifications, or idempotency edge cases.
+- It introduces a new service/worker plus integration/concurrency tests.
+- It would likely require more than about 15K output tokens.
+
+Good split pattern:
+
+- Core task: minimal service/worker and primary behavior.
+- Edge-case task: concurrency, restart recovery, idempotency, orphan cleanup, notification ordering.
+- Integration task: cross-service or end-to-end behavior.
+
+Do not over-split into trivial one-assertion tasks. A good task should still deliver
+a meaningful committed slice that passes focused verification.
+
+If a phase needs more than `max_tasks_per_development_phase`, do not force all work
+into oversized tasks. Return the best focused task list within the limit and keep
+lower-priority edge cases out of the current phase, or create explicit edge-case
+tasks only when there is room.
+
 ---
 
 ## JSON Signal
