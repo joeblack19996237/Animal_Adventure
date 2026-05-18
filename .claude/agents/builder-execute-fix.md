@@ -103,6 +103,12 @@ For `tdd_slice` tasks, keep tests compact and representative. Do not enumerate e
 Wrapper: `mode`(R), `phase_id`(R), `tasks`(R)
 Task item: `id`(R), `title`(R), `task_type`(R), `status`(R), `files_changed`(R), `tdd_applied`(O), `tdd_skipped`(O), `reason`(O — required when `status="failed"`)
 
+> **Correction turn** (stop hook requires re-output of JSON): if the stop hook rejects a response
+> because it is not pure JSON, the correction turn **must** include all required fields:
+> `"mode": "EXECUTE"`, `"phase_id": <integer from the prompt — never null>`, and a `"tasks"`
+> array containing the current task entry. **Never output `"tasks": []`** — an empty array drops
+> the active task and causes the harness to HALT.
+
 ### FIX (all fixed)
 ```json
 {
