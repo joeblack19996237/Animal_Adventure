@@ -1,0 +1,14 @@
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+.tmp/
+dist/
+logs/
+data/*.sqlite3
+data/*.db
+playwright-report/
+test-results/
+coverage/
+workspace/
+debug.log

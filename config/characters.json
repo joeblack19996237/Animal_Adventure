@@ -1,0 +1,65 @@
+[
+  {
+    "id": "penguin",
+    "display_name": "Penguin",
+    "enabled_in_mvp": true,
+    "scale": 0.45,
+    "anchor": { "x": 0.5, "y": 0.9 },
+    "collision_radius": 36,
+    "states": {
+      "stand": {
+        "front": "character_penguin_stand_front",
+        "back": "character_penguin_stand_back"
+      },
+      "walk": {
+        "front": "character_penguin_walk_front",
+        "back": "character_penguin_stand_back",
+        "left": "character_penguin_walk_side",
+        "right": "character_penguin_walk_side",
+        "right_mirror": true
+      }
+    }
+  },
+  {
+    "id": "arctic_fox",
+    "display_name": "Arctic Fox",
+    "enabled_in_mvp": true,
+    "scale": 0.5,
+    "anchor": { "x": 0.5, "y": 0.9 },
+    "collision_radius": 34,
+    "states": {
+      "stand": {
+        "front": "character_arctic_fox_stand_front",
+        "back": "character_arctic_fox_walk_back"
+      },
+      "walk": {
+        "front": "character_arctic_fox_walk_front",
+        "back": "character_arctic_fox_walk_back",
+        "left": "character_arctic_fox_walk_side",
+        "right": "character_arctic_fox_walk_side",
+        "right_mirror": true
+      }
+    }
+  },
+  {
+    "id": "cat_snowman",
+    "display_name": "Snowman Cat",
+    "enabled_in_mvp": true,
+    "scale": 0.5,
+    "anchor": { "x": 0.5, "y": 0.9 },
+    "collision_radius": 34,
+    "states": {
+      "stand": {
+        "front": "character_cat_snowman_stand_front",
+        "back": "character_cat_snowman_stand_back"
+      },
+      "walk": {
+        "front": "character_cat_snowman_walk_front",
+        "back": "character_cat_snowman_stand_back",
+        "left": "character_cat_snowman_walk_side",
+        "right": "character_cat_snowman_walk_side",
+        "right_mirror": true
+      }
+    }
+  }
+]

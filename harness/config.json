@@ -1,0 +1,62 @@
+{
+  "default_language": "python",
+  "default_app_type": "game",
+  "default_spec_path": "docs",
+  "subprocess_timeout": {
+    "TASK_BUILD": 180,
+    "EXECUTE": 600,
+    "REVIEW": 600,
+    "FIX": 300,
+    "CLEANUP": 300,
+    "EVALUATE_TESTS": 300,
+    "EVALUATE": 600
+  },
+  "max_attempts": 3,
+  "verify_fail_escalation": 2,
+  "verification_timeout": 600,
+  "autocompact_pct": 80,
+  "max_evaluate_iterations": 3,
+  "evaluate_early_stop_on_full_score": false,
+  "evaluation_min_score_pct": 0.9,
+  "cleanup_fix_deferred_issues": false,
+  "game_quick_smoke_phase_ids": [5, 8, 11, 14, 16],
+  "claude_session_pacing": {
+    "enabled": true,
+    "min_seconds_between_calls": 60,
+    "large_output_token_threshold": 15000,
+    "large_output_cooldown_seconds": 180,
+    "usage_window_seconds": 18000
+  },
+  "task_planning_limits": {
+    "enabled": true,
+    "max_tasks_per_development_phase": 10,
+    "allow_legacy_tdd_triplets": false
+  },
+  "artifact_limits": {
+    "max_new_test_file_lines": 250
+  },
+  "usage_guardrails": {
+    "enabled": true,
+    "max_single_output_tokens": 61000,
+    "max_phase_claude_calls": 20,
+    "max_phase_combined_tokens": 8000000
+  },
+  "external_dependency": {
+    "max_in_process_wait_seconds": 900
+  },
+  "profile_overrides": {},
+  "timeout_policy": {
+    "EXECUTE": {
+      "min": 600,
+      "max": 1200,
+      "tdd_slice_bonus": 300
+    },
+    "REVIEW": {
+      "min": 480,
+      "max": 1200,
+      "per_task": 10,
+      "per_changed_file": 45,
+      "per_diff_line": 0.25
+    }
+  }
+}

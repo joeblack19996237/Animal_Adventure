@@ -1,0 +1,9 @@
+{
+  "levels": {
+    "3": {
+      "unique_completed_quest_ids": 2,
+      "used_potion_count": 2,
+      "unlock_regions": ["spawn", "playground"]
+    }
+  }
+}

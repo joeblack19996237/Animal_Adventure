@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Write(workspace/review_report.md)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git rev-parse*)"
+    ],
+    "deny": [
+      "Bash(curl*)",
+      "Bash(wget*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/stop_validate_json.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/stop_validate_json.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 10000}],
+        "description": "Validate agent output is valid JSON before subprocess exits",
+        "id": "stop:validate-json"
+      }
+    ]
+  }
+}

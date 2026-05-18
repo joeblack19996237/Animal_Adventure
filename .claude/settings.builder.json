@@ -1,0 +1,131 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Write(app/**)",
+      "Edit(app/**)",
+      "Write(src/**)",
+      "Edit(src/**)",
+      "Write(tests/**)",
+      "Edit(tests/**)",
+      "Write(deploy/**)",
+      "Edit(deploy/**)",
+      "Write(data/.gitkeep)",
+      "Edit(data/.gitkeep)",
+      "Write(logs/.gitkeep)",
+      "Edit(logs/.gitkeep)",
+      "Write(.env.example)",
+      "Edit(.env.example)",
+      "Write(package.json)",
+      "Edit(package.json)",
+      "Write(package-lock.json)",
+      "Edit(package-lock.json)",
+      "Write(requirements.txt)",
+      "Edit(requirements.txt)",
+      "Write(index.html)",
+      "Edit(index.html)",
+      "Write(tsconfig.json)",
+      "Edit(tsconfig.json)",
+      "Write(vite.config.ts)",
+      "Edit(vite.config.ts)",
+      "Write(playwright.config.ts)",
+      "Edit(playwright.config.ts)",
+      "Write(pytest.ini)",
+      "Edit(pytest.ini)",
+      "Write(config/**)",
+      "Edit(config/**)",
+      "Write(docs/local-windows-deployment.md)",
+      "Edit(docs/local-windows-deployment.md)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git rev-parse*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(pytest*)",
+      "Bash(python -m py_compile*)",
+      "Bash(python -m pytest*)",
+      "Bash(ruff*)",
+      "Bash(npm --prefix client run typecheck*)",
+      "Bash(npm --prefix client test*)",
+      "Bash(npm install*)",
+      "Bash(npm run typecheck*)",
+      "Bash(npm test*)",
+      "Bash(npm run build*)",
+      "Bash(npm run test:e2e*)",
+      "Bash(npx --no-install prettier*)",
+      "Bash(npx --no-install eslint*)",
+      "Bash(npx playwright*)",
+      "Bash(npx tsc*)",
+      "Bash(npx vitest*)",
+      "Bash(python -m uvicorn*)",
+      "Bash(uvicorn*)"
+    ],
+    "deny": [
+      "Bash(curl*)",
+      "Bash(wget*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/stop_validate_json.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/stop_validate_json.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 10000}],
+        "description": "Validate agent output is valid JSON before subprocess exits",
+        "id": "stop:validate-json"
+      },
+      {
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/stop_git_commit.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/stop_git_commit.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 30000}],
+        "description": "Stage files_changed from signal and commit",
+        "id": "stop:git-commit"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/post_write_verify.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/post_write_verify.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 5000}],
+        "description": "Verify file exists after Write",
+        "id": "post:write:verify-exists"
+      },
+      {
+        "matcher": "Write",
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/post_py_lint_format.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/post_py_lint_format.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 15000}],
+        "description": "Run ruff format + lint on Python files after Write",
+        "id": "post:write:py-lint-format"
+      },
+      {
+        "matcher": "Write",
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/post_ts_lint_format.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/post_ts_lint_format.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 35000}],
+        "description": "Run prettier + eslint on TypeScript files after Write",
+        "id": "post:write:ts-lint-format"
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/post_edit_verify.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/post_edit_verify.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 5000}],
+        "description": "Verify edit applied for non-Python files after Edit",
+        "id": "post:edit:verify-changed"
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/post_py_lint_format.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/post_py_lint_format.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 15000}],
+        "description": "Run ruff format + lint on Python files after Edit",
+        "id": "post:edit:py-lint-format"
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/post_ts_lint_format.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/post_ts_lint_format.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 35000}],
+        "description": "Run prettier + eslint on TypeScript files after Edit",
+        "id": "post:edit:ts-lint-format"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{"type": "command", "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/pre_bash_security.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/pre_bash_security.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"", "timeout_ms": 5000}],
+        "description": "Block dangerous commands and prompt injection",
+        "id": "pre:bash:security"
+      }
+    ]
+  }
+}

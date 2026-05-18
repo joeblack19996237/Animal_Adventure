@@ -1,0 +1,50 @@
+[
+  {
+    "id": "item_blanket",
+    "name": "Blanket",
+    "asset_id": "item_blanket",
+    "stackable": false,
+    "slot_type": "inventory",
+    "type": "quest_item"
+  },
+  {
+    "id": "item_bagpipe",
+    "name": "Bagpipe",
+    "asset_id": "item_bagpipe",
+    "stackable": false,
+    "slot_type": "inventory",
+    "type": "quest_item"
+  },
+  {
+    "id": "item_dance_shoes",
+    "name": "Dance Shoes",
+    "asset_id": "item_dance_shoes",
+    "stackable": false,
+    "slot_type": "inventory",
+    "type": "quest_item"
+  },
+  {
+    "id": "potion_l0",
+    "name": "Potion",
+    "asset_id": "potion_l0",
+    "stackable": true,
+    "slot_type": "equipment",
+    "type": "consumable"
+  },
+  {
+    "id": "accessory_sleepy_hat",
+    "name": "Sleepy Hat",
+    "asset_id": "accessory_sleepy_hat",
+    "stackable": false,
+    "slot_type": "equipment",
+    "type": "accessory"
+  },
+  {
+    "id": "coin",
+    "name": "Dollar",
+    "asset_id": "coin",
+    "stackable": true,
+    "slot_type": "none",
+    "type": "currency"
+  }
+]

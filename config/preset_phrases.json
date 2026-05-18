@@ -1,0 +1,5 @@
+[
+  { "id": "hello", "text": "Hello!" },
+  { "id": "thanks", "text": "Thanks!" },
+  { "id": "lets_go", "text": "Let's go!" }
+]

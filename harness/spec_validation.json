@@ -1,0 +1,133 @@
+{
+  "app_types": ["cli", "web", "game"],
+
+  "common_requirements": [
+    {
+      "label": "architecture",
+      "keywords": ["architecture"],
+      "mode": "required"
+    },
+    {
+      "label": "workflow",
+      "keywords": ["workflow", "data flow", "process flow", "user flow", "game flow", "sequence diagram", "state machine", "flow"],
+      "mode": "required"
+    },
+    {
+      "label": "requirements",
+      "keywords": ["requirement", "requirements", "functional requirement", "user story", "user case"],
+      "mode": "required"
+    },
+    {
+      "label": "verification / completion criteria",
+      "keywords": ["verification", "completion criteria", "acceptance criteria", "done criteria"],
+      "mode": "required"
+    },
+    {
+      "label": "test plan",
+      "keywords": ["test plan", "integration testing", "E2E testing", "end-to-end testing", "test cases"],
+      "mode": "required"
+    },
+    {
+      "label": "build plan",
+      "keywords": ["build plan", "development plan", "development phases", "build phases", "phase"],
+      "mode": "required"
+    }
+  ],
+
+  "phase1_setup_keywords": ["setup", "foundation", "scaffold", "initialization", "bootstrap", "dependencies"],
+  "phase1_domain_disqualifiers": ["database", "db", "api", "server", "frontend", "backend", "client", "ui", "websocket", "auth", "model", "schema", "cache", "integration", "e2e", "end-to-end"],
+
+  "phase_type_keywords": {
+    "integration": ["integration"],
+    "e2e": ["e2e", "end-to-end", "end to end", "end2end", "verification"]
+  },
+
+  "language_types": ["python", "typescript"],
+
+  "extract_section_keywords": ["requirements", "verification", "architecture", "e2e", "e2e testing"],
+
+  "app_type_requirements": {
+    "web": [
+      {
+        "label": "api / service",
+        "keywords": ["api", "endpoint", "route", "websocket", "rest", "http"],
+        "mode": "required"
+      },
+      {
+        "label": "database",
+        "keywords": ["database", "db", "schema", "sqlite", "postgres", "mysql", "mongodb"],
+        "mode": "required"
+      },
+      {
+        "label": "data model",
+        "keywords": ["data model", "model", "entity", "schema"],
+        "mode": "required"
+      },
+      {
+        "label": "frontend / client",
+        "keywords": ["frontend", "client", "ui", "scene", "view", "page", "component"],
+        "mode": "required"
+      },
+      {
+        "label": "log design",
+        "keywords": ["log", "logging", "logger", "logback", "structlog"],
+        "mode": "required"
+      }
+    ],
+    "cli": [
+      {
+        "label": "data model",
+        "keywords": ["data model", "model", "entity", "schema"],
+        "mode": "conditional",
+        "condition_keywords": ["database", "schema", "model", "sqlite", "postgres", "mysql"]
+      }
+    ],
+    "game": [
+      {
+        "label": "Phaser / client",
+        "keywords": ["phaser", "client", "frontend", "game client"],
+        "mode": "required"
+      },
+      {
+        "label": "asset manifest",
+        "keywords": ["asset manifest", "assets", "static asset", "asset integrity"],
+        "mode": "required"
+      },
+      {
+        "label": "map / characters",
+        "keywords": ["map", "character", "characters", "map tiles"],
+        "mode": "required"
+      },
+      {
+        "label": "input / responsive",
+        "keywords": ["input", "controls", "responsive", "viewport"],
+        "mode": "required"
+      },
+      {
+        "label": "WebSocket multiplayer / reconnect",
+        "keywords": ["websocket", "multiplayer", "reconnect", "state_sync"],
+        "mode": "required"
+      },
+      {
+        "label": "persistence / backend restart",
+        "keywords": ["persistence", "persist", "backend restart", "restart", "reload"],
+        "mode": "required"
+      },
+      {
+        "label": "quests / inventory / shop / progression / L3",
+        "keywords": ["quest", "inventory", "shop", "progression", "l3"],
+        "mode": "required"
+      },
+      {
+        "label": "E2E / browser acceptance",
+        "keywords": ["e2e", "browser", "acceptance", "playwright", "end-to-end"],
+        "mode": "required"
+      },
+      {
+        "label": "logs / deployment / Nginx",
+        "keywords": ["log", "deployment", "nginx", "ops"],
+        "mode": "required"
+      }
+    ]
+  }
+}

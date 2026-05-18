@@ -1,0 +1,38 @@
+[
+  {
+    "id": "quest_hopper_blanket",
+    "npc_id": "hopper",
+    "title": "Find Hopper's Blanket",
+    "time_limit_seconds": 300,
+    "required_items": ["item_blanket"],
+    "item_spawn": { "mode": "fixed", "x": 2600, "y": 3100, "pickup_radius": 96 },
+    "rewards": [
+      { "type": "coins", "amount": 25 },
+      { "type": "equipment", "item_id": "accessory_sleepy_hat", "quantity": 1 }
+    ],
+    "completion_cooldown_seconds": 3600,
+    "failure_cooldown_seconds": 1800
+  },
+  {
+    "id": "quest_copper_bagpipe",
+    "npc_id": "copper",
+    "title": "Find Copper's Bagpipe",
+    "time_limit_seconds": 300,
+    "required_items": ["item_bagpipe"],
+    "item_spawn": { "mode": "fixed", "x": 3330, "y": 3500, "pickup_radius": 96 },
+    "rewards": [{ "type": "coins", "amount": 25 }],
+    "completion_cooldown_seconds": 3600,
+    "failure_cooldown_seconds": 1800
+  },
+  {
+    "id": "quest_elisa_dance_shoes",
+    "npc_id": "elisa",
+    "title": "Find Elisa's Dance Shoes",
+    "time_limit_seconds": 300,
+    "required_items": ["item_dance_shoes"],
+    "item_spawn": { "mode": "fixed", "x": 2830, "y": 4250, "pickup_radius": 96 },
+    "rewards": [{ "type": "coins", "amount": 25 }],
+    "completion_cooldown_seconds": 3600,
+    "failure_cooldown_seconds": 1800
+  }
+]

@@ -1,0 +1,24 @@
+{
+  "map": {
+    "asset_id": "map_full",
+    "tile_manifest": "config/map_tiles.json",
+    "width": 5430,
+    "height": 7240,
+    "spawn": { "x": 2715, "y": 3620 },
+    "bounds": { "x": 0, "y": 0, "width": 5430, "height": 7240 }
+  },
+  "interaction_regions": [
+    {
+      "id": "spawn_area",
+      "type": "mvp_interaction_region",
+      "x": 2715,
+      "y": 3620,
+      "radius": 900
+    }
+  ],
+  "hotspots": [],
+  "regions": {
+    "spawn": { "unlock_level": 0 },
+    "playground": { "unlock_level": 3, "mvp_behavior": "persist_and_notify_only" }
+  }
+}

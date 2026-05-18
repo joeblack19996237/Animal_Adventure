@@ -1,0 +1,29 @@
+[
+  {
+    "id": "hopper",
+    "name": "Hopper",
+    "asset_id": "npc_hopper",
+    "x": 2715,
+    "y": 3200,
+    "interaction_radius": 160,
+    "quest_id": "quest_hopper_blanket"
+  },
+  {
+    "id": "copper",
+    "name": "Copper",
+    "asset_id": "npc_copper",
+    "x": 3150,
+    "y": 3620,
+    "interaction_radius": 160,
+    "quest_id": "quest_copper_bagpipe"
+  },
+  {
+    "id": "elisa",
+    "name": "Elisa",
+    "asset_id": "npc_elisa",
+    "x": 2715,
+    "y": 4050,
+    "interaction_radius": 160,
+    "quest_id": "quest_elisa_dance_shoes"
+  }
+]

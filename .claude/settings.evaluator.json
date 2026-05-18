@@ -1,0 +1,87 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Write(workspace/rubric-report.md)",
+      "Write(workspace/screenshots/**)",
+      "Write(workspace/eval_playwright.py)",
+      "Write(workspace/eval_http.py)",
+      "Write(workspace/eval_db.py)",
+      "Write(workspace/eval_ws.py)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git rev-parse*)",
+      "Bash(pytest*)",
+      "Bash(python -m pytest*)",
+      "Bash(npm --prefix client run typecheck*)",
+      "Bash(npm --prefix client test*)",
+      "Bash(npm install*)",
+      "Bash(npm run typecheck*)",
+      "Bash(npm test*)",
+      "Bash(npm run build*)",
+      "Bash(npm run test:e2e*)",
+      "Bash(npx playwright*)",
+      "Bash(python workspace/eval_playwright.py*)",
+      "Bash(python workspace/eval_http.py*)",
+      "Bash(python workspace/eval_db.py*)",
+      "Bash(python workspace/eval_ws.py*)",
+      "Bash(python harness/eval_services.py start-api*)",
+      "Bash(python harness/eval_services.py start-vite*)",
+      "Bash(python harness/eval_services.py check-nginx*)",
+      "Bash(python harness/eval_services.py cleanup*)",
+      "Bash(python -m uvicorn*)",
+      "Bash(uvicorn*)",
+      "Bash(node*)"
+    ],
+    "deny": [
+      "Bash(curl*)",
+      "Bash(wget*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/stop_validate_json.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/stop_validate_json.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"",
+            "timeout_ms": 10000
+          }
+        ],
+        "description": "Validate agent output is valid JSON before subprocess exits",
+        "id": "stop:validate-json"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/post_write_verify.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/post_write_verify.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"",
+            "timeout_ms": 5000
+          }
+        ],
+        "description": "Verify file exists after Write",
+        "id": "post:write:verify-exists"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys,pathlib,subprocess as sp; d=sys.stdin.buffer.read(); h=next((p/'.claude/hooks/pre_bash_security.py' for p in [pathlib.Path.cwd()]+list(pathlib.Path.cwd().parents) if (p/'.claude/hooks/pre_bash_security.py').exists()),None); sys.exit(0) if h is None else sys.exit(sp.run([sys.executable,str(h)],input=d).returncode)\"",
+            "timeout_ms": 5000
+          }
+        ],
+        "description": "Block dangerous commands and prompt injection",
+        "id": "pre:bash:security"
+      }
+    ]
+  }
+}
