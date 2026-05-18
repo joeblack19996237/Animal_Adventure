@@ -206,6 +206,17 @@ test.describe('@phase11-smoke', () => {
       expect(box.width, 'joystick width must be non-zero').toBeGreaterThan(0);
       expect(box.height, 'joystick height must be non-zero').toBeGreaterThan(0);
 
+      const centerX = box.x + box.width / 2;
+      const centerY = box.y + box.height / 2;
+      const dragX = centerX + box.width * 0.4;
+
+      // Use Playwright pointer input instead of constructing Touch objects:
+      // Playwright's WebKit build exposes Touch but rejects new Touch().
+      await page.mouse.move(centerX, centerY);
+      await page.mouse.down();
+      await page.mouse.move(dragX, centerY);
+      await page.mouse.up();
+
       expect(
         pageErrors,
         `Console errors during touch joystick smoke: ${pageErrors.join('; ')}`,

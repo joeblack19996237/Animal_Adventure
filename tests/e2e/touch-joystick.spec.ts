@@ -118,62 +118,15 @@ test.describe('e2e_touch_joystick_moves_player', () => {
 
     const centerX = box.x + box.width / 2;
     const centerY = box.y + box.height / 2;
-    // Move right: shift touch point by 40% of joystick width
+    // Move right: shift pointer by 40% of joystick width
     const moveX = centerX + box.width * 0.4;
 
-    await page.evaluate(
-      ({ cx, cy }: { cx: number; cy: number }) => {
-        const el = document.getElementById('joystick-base');
-        if (!el) throw new Error('Element #joystick-base not found');
-        const touch = new Touch({
-          identifier: 1,
-          target: el,
-          clientX: cx,
-          clientY: cy,
-          radiusX: 1,
-          radiusY: 1,
-          rotationAngle: 0,
-          force: 1,
-        });
-        el.dispatchEvent(
-          new TouchEvent('touchstart', {
-            touches: [touch],
-            targetTouches: [touch],
-            changedTouches: [touch],
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
-      },
-      { cx: centerX, cy: centerY },
-    );
-
-    await page.evaluate(
-      ({ mx, cy }: { mx: number; cy: number }) => {
-        const el = document.getElementById('joystick-base');
-        if (!el) throw new Error('Element #joystick-base not found');
-        const touch = new Touch({
-          identifier: 1,
-          target: el,
-          clientX: mx,
-          clientY: cy,
-          radiusX: 1,
-          radiusY: 1,
-          rotationAngle: 0,
-          force: 1,
-        });
-        el.dispatchEvent(
-          new TouchEvent('touchmove', {
-            touches: [touch],
-            targetTouches: [touch],
-            changedTouches: [touch],
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
-      },
-      { mx: moveX, cy: centerY },
-    );
+    // Use Playwright pointer API — avoids new Touch() constructor which is
+    // unavailable in Playwright's WebKit build. On real touch devices,
+    // pointerdown/pointermove events fire alongside touch events.
+    await page.mouse.move(centerX, centerY);
+    await page.mouse.down();
+    await page.mouse.move(moveX, centerY);
 
     // Allow up to 500ms for the 20Hz game loop to emit at least one player_move
     await page.waitForTimeout(500);

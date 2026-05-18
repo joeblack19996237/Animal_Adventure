@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from pathlib import Path
@@ -55,10 +56,10 @@ def test_two_clients_receive_movement(client: TestClient) -> None:
                 try:
                     msg = ws2.receive_json()  # expect state_update
                     p2_messages.append(msg)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as exc:
+                    print(f"run_player2 inner error: {exc}", file=sys.stderr)
+        except Exception as exc:
+            print(f"run_player2 error: {exc}", file=sys.stderr)
         finally:
             if not p2_ready.is_set():
                 p2_ready.set()
@@ -121,10 +122,10 @@ def test_player_left_broadcast(client: TestClient) -> None:
                 try:
                     msg = ws2.receive_json()  # expect player_left
                     p2_messages.append(msg)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+                except Exception as exc:
+                    print(f"run_player2 inner error: {exc}", file=sys.stderr)
+        except Exception as exc:
+            print(f"run_player2 error: {exc}", file=sys.stderr)
         finally:
             if not p2_ready.is_set():
                 p2_ready.set()
@@ -153,7 +154,7 @@ def test_player_left_broadcast(client: TestClient) -> None:
 
 
 @pytest.mark.integration
-def test_ws_reconnect_receives_state_sync(client: TestClient) -> None:
+def test_ws_reconnect_recovery(client: TestClient) -> None:
     """Forced disconnect followed by reconnect delivers a fresh state_sync."""
     player_id = _create_player(client, "Reconnector")
 
