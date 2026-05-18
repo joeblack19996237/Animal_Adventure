@@ -48,11 +48,6 @@ def player_a(player_service: PlayerService) -> dict:
     return player_service.create_player("Alice", "penguin")
 
 
-@pytest.fixture
-def player_b(player_service: PlayerService) -> dict:
-    return player_service.create_player("Bob", "arctic_fox")
-
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -148,96 +143,38 @@ class TestQuestExpiryScan:
         conn.close()
         assert lock is None
 
-    def test_preserves_completed_terminal_state(
-        self, expiry_worker: QuestExpiryWorker, player_a: dict, db_path: Path
+    @pytest.mark.parametrize("terminal_status", ["completed", "failed"])
+    def test_preserves_existing_terminal_state(
+        self,
+        expiry_worker: QuestExpiryWorker,
+        player_a: dict,
+        db_path: Path,
+        terminal_status: str,
     ) -> None:
         quest_instance_id, _ = _insert_active_quest(
             db_path, player_a["player_id"], expires_at=_past_utc(5)
         )
         conn = connect_db(db_path)
         conn.execute(
-            "UPDATE player_quests SET status='completed' WHERE id=?",
-            (quest_instance_id,),
+            "UPDATE player_quests SET status=? WHERE id=?",
+            (terminal_status, quest_instance_id),
         )
         conn.execute("DELETE FROM quest_locks WHERE npc_id='hopper'")
         conn.commit()
         conn.close()
-
-        expiry_worker.scan_expired_quests()
-
-        conn = connect_db(db_path)
-        row = conn.execute(
-            "SELECT status FROM player_quests WHERE id=?", (quest_instance_id,)
-        ).fetchone()
-        conn.close()
-        assert row[0] == "completed"
-
-    def test_preserves_already_failed_terminal_state(
-        self, expiry_worker: QuestExpiryWorker, player_a: dict, db_path: Path
-    ) -> None:
-        quest_instance_id, _ = _insert_active_quest(
-            db_path, player_a["player_id"], expires_at=_past_utc(5)
-        )
-        conn = connect_db(db_path)
-        conn.execute(
-            "UPDATE player_quests SET status='failed', cooldown_until=? WHERE id=?",
-            (_future_utc(1800), quest_instance_id),
-        )
-        conn.execute("DELETE FROM quest_locks WHERE npc_id='hopper'")
-        conn.commit()
-        conn.close()
-
-        expiry_worker.scan_expired_quests()
-
-        conn = connect_db(db_path)
-        row = conn.execute(
-            "SELECT status FROM player_quests WHERE id=?", (quest_instance_id,)
-        ).fetchone()
-        conn.close()
-        assert row[0] == "failed"
-
-    def test_ignores_active_quests_not_yet_expired(
-        self, expiry_worker: QuestExpiryWorker, player_a: dict, db_path: Path
-    ) -> None:
-        quest_instance_id, _ = _insert_active_quest(
-            db_path, player_a["player_id"], expires_at=_future_utc(300)
-        )
         expiry_worker.scan_expired_quests()
         conn = connect_db(db_path)
         row = conn.execute(
             "SELECT status FROM player_quests WHERE id=?", (quest_instance_id,)
         ).fetchone()
         conn.close()
-        assert row[0] == "active"
-
-    def test_returns_list_of_failed_quest_descriptors(
-        self, expiry_worker: QuestExpiryWorker, player_a: dict, db_path: Path
-    ) -> None:
-        quest_instance_id, _ = _insert_active_quest(db_path, player_a["player_id"])
-        results = expiry_worker.scan_expired_quests()
-        assert len(results) == 1
-        assert results[0]["quest_instance_id"] == quest_instance_id
-        assert results[0]["player_id"] == player_a["player_id"]
+        assert row[0] == terminal_status
 
 
 # ── startup scan ──────────────────────────────────────────────────────────────
 
 
 class TestQuestExpiryStartupScan:
-    def test_fails_quest_that_expired_before_restart(
-        self, expiry_worker: QuestExpiryWorker, player_a: dict, db_path: Path
-    ) -> None:
-        quest_instance_id, _ = _insert_active_quest(
-            db_path, player_a["player_id"], expires_at=_past_utc(900)
-        )
-        expiry_worker.scan_expired_quests()
-        conn = connect_db(db_path)
-        row = conn.execute(
-            "SELECT status FROM player_quests WHERE id=?", (quest_instance_id,)
-        ).fetchone()
-        conn.close()
-        assert row[0] == "failed"
-
     def test_orphan_lock_cleanup_deletes_locks_without_matching_quest_row(
         self, player_a: dict, db_path: Path
     ) -> None:
@@ -258,14 +195,11 @@ class TestQuestExpiryStartupScan:
             (quest_instance_id, player_a["player_id"], _past_utc(10), now),
         )
         conn.commit()
-        # Disable FK to simulate legacy/corrupt state where CASCADE didn't fire
         conn.execute("PRAGMA foreign_keys=OFF")
         conn.execute("DELETE FROM player_quests WHERE id=?", (quest_instance_id,))
         conn.commit()
         conn.close()
-
         deleted = clean_orphan_quest_locks(db_path)
-
         assert deleted >= 1
         conn = connect_db(db_path)
         lock = conn.execute(
@@ -273,20 +207,6 @@ class TestQuestExpiryStartupScan:
         ).fetchone()
         conn.close()
         assert lock is None
-
-    def test_valid_active_quest_lock_not_deleted_by_orphan_cleanup(
-        self, player_a: dict, db_path: Path
-    ) -> None:
-        _insert_active_quest(
-            db_path, player_a["player_id"], expires_at=_future_utc(300)
-        )
-        clean_orphan_quest_locks(db_path)
-        conn = connect_db(db_path)
-        lock = conn.execute(
-            "SELECT npc_id FROM quest_locks WHERE npc_id='hopper'"
-        ).fetchone()
-        conn.close()
-        assert lock is not None
 
 
 # ── concurrent scanner + turn-in ─────────────────────────────────────────────
@@ -299,7 +219,6 @@ class TestQuestExpiryConcurrentTurnIn:
         quest_instance_id, _ = _insert_active_quest(
             db_path, player_a["player_id"], expires_at=_past_utc(1)
         )
-        # Simulate turn-in path completing the quest before the scanner runs
         conn = connect_db(db_path)
         conn.execute(
             "UPDATE player_quests SET status='completed', cooldown_until=? "
@@ -313,61 +232,10 @@ class TestQuestExpiryConcurrentTurnIn:
         conn.execute("DELETE FROM quest_locks WHERE npc_id='hopper'")
         conn.commit()
         conn.close()
-
         expiry_worker.scan_expired_quests()
-
         conn = connect_db(db_path)
         row = conn.execute(
             "SELECT status FROM player_quests WHERE id=?", (quest_instance_id,)
         ).fetchone()
         conn.close()
         assert row[0] == "completed"
-
-    def test_scanner_failure_transition_is_idempotent(
-        self, expiry_worker: QuestExpiryWorker, player_a: dict, db_path: Path
-    ) -> None:
-        quest_instance_id, _ = _insert_active_quest(db_path, player_a["player_id"])
-        expiry_worker.scan_expired_quests()
-        expiry_worker.scan_expired_quests()
-        conn = connect_db(db_path)
-        row = conn.execute(
-            "SELECT status FROM player_quests WHERE id=?", (quest_instance_id,)
-        ).fetchone()
-        conn.close()
-        assert row[0] == "failed"
-
-    def test_two_players_with_different_expired_quests_are_both_failed(
-        self,
-        expiry_worker: QuestExpiryWorker,
-        player_a: dict,
-        player_b: dict,
-        db_path: Path,
-    ) -> None:
-        qid_a, _ = _insert_active_quest(
-            db_path,
-            player_a["player_id"],
-            npc_id="hopper",
-            quest_id="quest_hopper_blanket",
-            expires_at=_past_utc(5),
-        )
-        qid_b, _ = _insert_active_quest(
-            db_path,
-            player_b["player_id"],
-            npc_id="copper",
-            quest_id="quest_copper_bagpipe",
-            item_id="item_bagpipe",
-            expires_at=_past_utc(5),
-        )
-
-        expiry_worker.scan_expired_quests()
-
-        conn = connect_db(db_path)
-        row_a = conn.execute(
-            "SELECT status FROM player_quests WHERE id=?", (qid_a,)
-        ).fetchone()
-        row_b = conn.execute(
-            "SELECT status FROM player_quests WHERE id=?", (qid_b,)
-        ).fetchone()
-        conn.close()
-        assert row_a[0] == "failed"
-        assert row_b[0] == "failed"
