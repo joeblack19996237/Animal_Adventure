@@ -447,6 +447,7 @@ def execute(
         + _TEXT_ARTIFACT_INSTRUCTION
         + " "
         + _EXISTING_TRACKED_NOOP_INSTRUCTION
+        + f' Your JSON signal must include "phase_id": {phase_id} (integer, not null).'
         + _JSON_SIGNAL_SUFFIX
     )
     timeout = compute_timeout(
@@ -673,7 +674,9 @@ def author_evaluate_tests(
         model=model,
         mode="EVALUATE_TESTS",
         config=config,
-        settings_file=profiles[0].get("builder_settings", ".claude/settings.builder.json"),
+        settings_file=profiles[0].get(
+            "builder_settings", ".claude/settings.builder.json"
+        ),
     )
 
 

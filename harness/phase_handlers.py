@@ -82,9 +82,7 @@ def _phase_spec_context(state: dict, phase: dict | None) -> str:
 def _completed_work_context(state: dict, *, max_chars: int = 4000) -> str:
     lines: list[str] = []
     for phase in state.get("phases", []):
-        completed = [
-            t for t in phase.get("tasks", []) if t.get("status") == "complete"
-        ]
+        completed = [t for t in phase.get("tasks", []) if t.get("status") == "complete"]
         if not completed:
             continue
         lines.append(f"Phase {phase.get('id')} ({phase.get('title', '')}) completed:")
@@ -102,7 +100,9 @@ def _completed_work_context(state: dict, *, max_chars: int = 4000) -> str:
     return summary[-max_chars:]
 
 
-def _task_planning_violation(config: dict, phase: dict, tasks: list[dict]) -> str | None:
+def _task_planning_violation(
+    config: dict, phase: dict, tasks: list[dict]
+) -> str | None:
     limits = get_task_planning_limits(config)
     if not limits["enabled"] or phase.get("phase_type") != "development":
         return None
@@ -153,10 +153,7 @@ def _validate_task_plan_signal(phase_id: int, signal: dict) -> str | None:
 
         tdd_mode = task.get("tdd_mode")
         if tdd_mode not in _ALLOWED_TDD_MODES:
-            return (
-                f"TASK_BUILD task {task_id} has unknown tdd_mode "
-                f"{tdd_mode!r}"
-            )
+            return f"TASK_BUILD task {task_id} has unknown tdd_mode {tdd_mode!r}"
     return None
 
 
@@ -341,6 +338,16 @@ def handle_executing(harness: Harness, state: dict, phase_id: int, profile: dict
         signal = result["signal"]
 
         signal_phase_id = signal.get("phase_id")
+        if signal_phase_id is None:
+            # Builder omitted or nulled phase_id (common on large-output correction turns).
+            # Patch from harness context; task-ID checks below still guard correctness.
+            logger.warning(
+                "[EXECUTE] Signal phase_id is None — patching to %r for task %r.",
+                phase_id,
+                task["id"],
+            )
+            signal["phase_id"] = phase_id
+            signal_phase_id = phase_id
         if signal_phase_id != phase_id:
             logger.error(
                 "[EXECUTE] Signal phase_id=%r does not match active phase %r — "
