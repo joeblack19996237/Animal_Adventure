@@ -12,3 +12,6 @@ test-results/
 coverage/
 workspace/
 debug.log
+.coverage
+Animal_Adventure_design_v2.md
+push-manifest.txt
