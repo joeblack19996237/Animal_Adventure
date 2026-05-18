@@ -308,6 +308,8 @@ def _prepare_verification_cmd(cmd: list[str]) -> list[str]:
         return prepared
     if not any(part == "--ignore=.pytest_cache" for part in prepared):
         prepared.append("--ignore=.pytest_cache")
+    if not any(part == "--ignore=.tmp" for part in prepared):
+        prepared.append("--ignore=.tmp")
     # Do not add --basetemp: pytest calls ensure_reset_dir() on a user-supplied
     # basetemp, which issues rmtree on Windows where prior-run SQLite/WAL handles
     # are still open, causing PermissionError (WinError 5) at test-setup time.

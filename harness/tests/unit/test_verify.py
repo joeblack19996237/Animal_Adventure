@@ -60,6 +60,7 @@ def _expected_pytest_cmd(cmd):
     return [
         *cmd,
         "--ignore=.pytest_cache",
+        "--ignore=.tmp",
     ]
 
 
@@ -142,6 +143,7 @@ def test_prepare_verification_cmd_does_not_duplicate_pytest_options():
         [
             "pytest",
             "--ignore=.pytest_cache",
+            "--ignore=.tmp",
             "--basetemp=workspace/custom-tmp",
         ]
     )
@@ -149,6 +151,7 @@ def test_prepare_verification_cmd_does_not_duplicate_pytest_options():
     assert cmd == [
         "pytest",
         "--ignore=.pytest_cache",
+        "--ignore=.tmp",
         "--basetemp=workspace/custom-tmp",
     ]
 
@@ -1413,7 +1416,10 @@ def test_verify_execution_uses_integration_test_cmd(
     monkeypatch.setattr(subprocess, "run", mock_run)
     verify_execution(harness, "old_sha", [], signal)
     non_git = [c for c in called_cmds if c[0] != "git"]
-    assert any(c == _expected_pytest_cmd(sample_profile["integration_test_cmd"]) for c in non_git)
+    assert any(
+        c == _expected_pytest_cmd(sample_profile["integration_test_cmd"])
+        for c in non_git
+    )
 
 
 def test_verify_execution_runs_all_game_e2e_test_commands(
@@ -1587,7 +1593,10 @@ def test_verify_fix_uses_integration_test_cmd(
     monkeypatch.setattr(subprocess, "run", mock_run)
     verify_fix(harness, state, fixes, 1)
     non_git = [c for c in called_cmds if c[0] != "git"]
-    assert any(c == _expected_pytest_cmd(sample_profile["integration_test_cmd"]) for c in non_git)
+    assert any(
+        c == _expected_pytest_cmd(sample_profile["integration_test_cmd"])
+        for c in non_git
+    )
 
 
 def test_verify_fix_runs_all_game_e2e_test_commands(
