@@ -86,11 +86,14 @@ State.json is built up in three distinct steps — not all at once:
     },
     "regression": {
       "status": "pending",
+      "failure_kind": null,
+      "blocker_kind": null,
       "attempts": 0,
       "commands": [["pytest"]],
       "issues": [],
       "last_error": [],
       "last_run": null,
+      "artifact_path": null,
       "passed_sha": null
     }
   }],
@@ -122,28 +125,38 @@ current phase.
 
 `phase.regression` fields:
 
-- `status` — `pending`, `running`, `failed`, or `passed`
+- `status` — `pending`, `running`, `failed`, `blocked`, or `passed`
+- `failure_kind` — `product_failure`, `infra_failure`, `timeout`, or `null`
+- `blocker_kind` — set when a non-product regression failure blocks automatic FIX
 - `attempts` — count of full regression runs for this phase
 - `commands` — de-duplicated product verification commands selected from phase verification profiles
 - `last_run.commands[]` — per-command `cmd`, `returncode`, `stdout_tail`, and `stderr_tail`
 - `issues` — issue IDs generated from regression failures
 - `last_error` — latest regression blocker summary
+- `artifact_path` — log file containing the most recent failed regression command tails
 - `passed_sha` — HEAD SHA observed when the full regression gate passed
 
-Regression failures are converted into current-phase review issues using the
-normal `"{phase_id}.{seq}"` issue ID format. The next ID is allocated after the
-highest existing issue sequence in the phase. Regression issues are stored in
-`review.issues[]` with:
+Product regression failures are converted into current-phase review issues using
+the normal `"{phase_id}.{seq}"` issue ID format. The next ID is allocated after
+the highest existing issue sequence in the phase. Regression issues are stored
+in `review.issues[]` with:
 
 - `severity="HIGH"`
 - `dimension="Regression"`
 - `source="regression"`
+- `failure_kind="product_failure"`
 - `regression_key` for de-duplicating repeated failures
 - `regression_evidence` containing the failing command and output tails
 
 This deliberately reuses the existing FIX signal schema and fix cycle. The
 builder must fix the product behavior or legitimate test integration problem; it
 must not delete, skip, xfail, or weaken regression coverage to pass the gate.
+
+Regression infra failures do not create product review issues. If evidence
+clearly points to temp/cache/harness collection problems, missing commands, or a
+regression command timeout, the harness sets `phase.regression.status="blocked"`
+and stops before FIXING so an operator can inspect the artifact and repair the
+harness/environment cause.
 
 ## ID Format Contract
 
@@ -184,6 +197,12 @@ EXECUTE and FIX carry no wrapper status because per-item statuses already contai
 ## Evaluate State
 
 - `evaluate.status` is `evaluating`, `complete`, `halted`, `blocked_external_dependency`, `timeout`, or `error`.
+- `evaluate.status="blocked_external_dependency"` means an external service
+  dependency blocked evaluator or evaluate-fix execution.
+- `evaluate.status="timeout"` means the evaluator subprocess exceeded its
+  configured timeout.
+- `evaluate.status="error"` means evaluator output, subprocess execution, or
+  verification failed in a non-timeout way.
 - `evaluate.app_type` is the authoritative app type for evaluator prompts when present. It is inferred from the top-level app type, phase languages, and `client/index.html`, then persisted so the evaluator and fix agent read the same value on resume.
 - `evaluate.current_iteration` records the in-flight evaluator iteration. It is set before calling the evaluator and cleared after a successful iteration append.
 - `evaluate.attempts` increments on each evaluator subprocess attempt, including attempts that later become `blocked_external_dependency`, `timeout`, or `error`.

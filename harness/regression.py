@@ -5,6 +5,7 @@ import logging
 import re
 import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from events import emit_event
@@ -24,6 +25,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 REGRESSION_SOURCE = "regression"
+REGRESSION_PRODUCT_FAILURE = "product_failure"
+REGRESSION_INFRA_FAILURE = "infra_failure"
+REGRESSION_TIMEOUT = "timeout"
+REGRESSION_BLOCKED_STATUSES = {"blocked", "error", "halted"}
+REGRESSION_FAILURE_ARTIFACT_DIR = Path("workspace/regression")
 
 
 def collect_regression_commands(
@@ -72,6 +78,8 @@ def run_phase_regression_gate(harness: Harness, state: dict, phase_id: int) -> b
     failures = [item for item in evidence["commands"] if item.get("returncode") != 0]
     if not failures:
         regression["status"] = "passed"
+        regression["failure_kind"] = None
+        regression["blocker_kind"] = None
         regression["last_error"] = []
         regression["passed_sha"] = _current_head()
         _mark_regression_issues_fixed(phase, regression["passed_sha"])
@@ -79,11 +87,56 @@ def run_phase_regression_gate(harness: Harness, state: dict, phase_id: int) -> b
         logger.info("[REGRESSION] Phase %d full regression passed.", phase_id)
         return True
 
+    artifact_path = _write_regression_failure_artifact(phase_id, failures)
+    for failure in failures:
+        classification = classify_regression_failure(failure)
+        failure["failure_kind"] = classification["kind"]
+        failure["failure_reason"] = classification["reason"]
+
+    failure_kinds = {failure.get("failure_kind") for failure in failures}
+    regression["artifact_path"] = str(artifact_path)
+    if failure_kinds and failure_kinds <= {
+        REGRESSION_INFRA_FAILURE,
+        REGRESSION_TIMEOUT,
+    }:
+        kind = (
+            REGRESSION_TIMEOUT
+            if REGRESSION_TIMEOUT in failure_kinds
+            else REGRESSION_INFRA_FAILURE
+        )
+        regression["status"] = "blocked"
+        regression["failure_kind"] = kind
+        regression["blocker_kind"] = kind
+        regression["last_error"] = [
+            {
+                "reason": "full regression blocked by harness or environment failure",
+                "failure_kind": kind,
+                "failed_commands": [failure.get("cmd", []) for failure in failures],
+                "artifact_path": str(artifact_path),
+                "details": [
+                    failure.get("failure_reason") or _failure_reason(failure)
+                    for failure in failures
+                ],
+            }
+        ]
+        regression["issues"] = []
+        save_state(state)
+        logger.error(
+            "[REGRESSION] Phase %d blocked by %s; not sending to product FIX.",
+            phase_id,
+            kind,
+        )
+        return False
+
     regression["status"] = "failed"
+    regression["failure_kind"] = REGRESSION_PRODUCT_FAILURE
+    regression["blocker_kind"] = None
     regression["last_error"] = [
         {
             "reason": "full regression failed before phase advancement",
+            "failure_kind": REGRESSION_PRODUCT_FAILURE,
             "failed_commands": [failure.get("cmd", []) for failure in failures],
+            "artifact_path": str(artifact_path),
         }
     ]
     issues = _record_regression_failures(harness, state, phase_id, failures)
@@ -160,6 +213,7 @@ def _record_regression_failures(
                 issue["attempts"] = issue.get("attempts", 0) + 1
             issue["status"] = "open"
             issue["severity"] = "HIGH"
+            issue["failure_kind"] = REGRESSION_PRODUCT_FAILURE
             issue["regression_evidence"] = failure
             issue.setdefault("last_error", []).append(reason)
         else:
@@ -175,6 +229,7 @@ def _record_regression_failures(
                 "fixed_sha": None,
                 "last_error": [reason],
                 "source": REGRESSION_SOURCE,
+                "failure_kind": REGRESSION_PRODUCT_FAILURE,
                 "regression_key": key,
                 "regression_evidence": failure,
             }
@@ -280,6 +335,93 @@ def _failure_reason(failure: dict) -> str:
         f"full regression command failed: {cmd} "
         f"(returncode={failure.get('returncode')})"
     )
+
+
+def classify_regression_failure(failure: dict) -> dict:
+    output = "\n".join(
+        [
+            str(failure.get("stdout_tail", "")),
+            str(failure.get("stderr_tail", "")),
+        ]
+    )
+    returncode = failure.get("returncode")
+    if returncode == 124 or "command timed out after" in output.lower():
+        return {
+            "kind": REGRESSION_TIMEOUT,
+            "reason": "regression command timed out; requires harness/operator triage",
+        }
+    if returncode == 127:
+        return {
+            "kind": REGRESSION_INFRA_FAILURE,
+            "reason": "regression command failed before tests could run",
+        }
+    if _looks_like_infra_collection_failure(output):
+        return {
+            "kind": REGRESSION_INFRA_FAILURE,
+            "reason": "regression failed while collecting temp/cache/harness artifacts",
+        }
+    return {
+        "kind": REGRESSION_PRODUCT_FAILURE,
+        "reason": "regression command reported product test failures",
+    }
+
+
+def regression_failure_blocks_fix(phase: dict | None) -> bool:
+    regression = (phase or {}).get("regression", {})
+    if regression.get("status") in REGRESSION_BLOCKED_STATUSES:
+        return regression.get("failure_kind") in {
+            REGRESSION_INFRA_FAILURE,
+            REGRESSION_TIMEOUT,
+        }
+    return False
+
+
+def _looks_like_infra_collection_failure(output: str) -> bool:
+    lowered = output.replace("\\", "/").lower()
+    infra_path_markers = (
+        "/.tmp/",
+        ".tmp/",
+        "/.pytest_cache/",
+        ".pytest_cache/",
+        "workspace/verification-tmp",
+        "pytest-of-",
+    )
+    infra_error_markers = (
+        "permissionerror",
+        "winerror 5",
+        "file not found",
+        "filenotfounderror",
+        "error collecting",
+        "errors during collection",
+        "interrupted:",
+    )
+    return any(marker in lowered for marker in infra_path_markers) and any(
+        marker in lowered for marker in infra_error_markers
+    )
+
+
+def _write_regression_failure_artifact(phase_id: int, failures: list[dict]) -> Path:
+    REGRESSION_FAILURE_ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
+    path = REGRESSION_FAILURE_ARTIFACT_DIR / f"phase_{phase_id}_last_failure.log"
+    blocks = []
+    for failure in failures:
+        blocks.extend(
+            [
+                f"Command: {_format_cmd(failure.get('cmd', []))}",
+                f"Return code: {failure.get('returncode')}",
+                "",
+                "Stdout tail:",
+                str(failure.get("stdout_tail", "")),
+                "",
+                "Stderr tail:",
+                str(failure.get("stderr_tail", "")),
+                "",
+                "---",
+                "",
+            ]
+        )
+    path.write_text("\n".join(blocks), encoding="utf-8")
+    return path
 
 
 def _format_cmd(cmd: list[str]) -> str:

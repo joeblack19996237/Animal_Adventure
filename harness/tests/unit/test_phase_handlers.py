@@ -1415,3 +1415,27 @@ def test_handle_regression_testing_fail_returns_fixing(
     )
 
     assert result == HarnessState.FIXING
+
+
+def test_handle_regression_testing_infra_block_returns_halted(
+    sample_state, sample_config, monkeypatch
+):
+    from harness import HarnessState
+
+    save_state(sample_state)
+
+    def block_regression(*args, **kwargs):
+        sample_state["phases"][0]["regression"] = {
+            "status": "blocked",
+            "failure_kind": "infra_failure",
+            "last_error": ["pytest collected .tmp permission error"],
+        }
+        return False
+
+    monkeypatch.setattr(ph_mod, "run_phase_regression_gate", block_regression)
+
+    result = handle_regression_testing(
+        _make_harness(sample_config), sample_state, phase_id=1
+    )
+
+    assert result == HarnessState.HALTED

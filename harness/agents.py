@@ -778,6 +778,7 @@ def fix_issues(
         + (f"Spec context:\n{spec_context}\n" if spec_context else "")
         + _TEXT_ARTIFACT_INSTRUCTION
         + " If an issue has Dimension: Regression or source=regression, treat it as a HIGH severity phase advancement blocker. Do not delete, skip, or weaken regression tests to make the command pass; fix the product behavior or legitimate test integration problem."
+        + " If the regression evidence clearly points to harness/environment infrastructure (for example .tmp, .pytest_cache, workspace/verification-tmp, pytest collection PermissionError, missing command, or timeout cleanup failure), do not modify product code; report the issue as open with a concise harness infra blocker reason."
         + f" Run `{' '.join(test_cmd)}` after all fixes. Respond with JSON only."
         + _JSON_SIGNAL_SUFFIX
     )

@@ -6,7 +6,7 @@
     "TASK_BUILD": 180,
     "EXECUTE": 600,
     "REVIEW": 600,
-    "FIX": 300,
+    "FIX": 600,
     "CLEANUP": 300,
     "EVALUATE_TESTS": 300,
     "EVALUATE": 600
@@ -14,6 +14,15 @@
   "max_attempts": 3,
   "verify_fail_escalation": 2,
   "verification_timeout": 600,
+  "regression_gate": {
+    "infra_failure_paths": [
+      ".tmp",
+      ".pytest_cache",
+      "workspace/verification-tmp"
+    ],
+    "block_infra_failures": true,
+    "block_timeouts": true
+  },
   "autocompact_pct": 80,
   "max_evaluate_iterations": 3,
   "evaluate_early_stop_on_full_score": false,

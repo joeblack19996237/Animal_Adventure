@@ -134,6 +134,17 @@ def test_prepare_verification_cmd_adds_pytest_cache_ignore():
     assert cmd == _expected_pytest_cmd(["pytest", "--ignore=harness"])
 
 
+def test_prepare_verification_cmd_adds_tmp_ignore_for_absolute_pytest():
+    cmd = _prepare_verification_cmd(
+        [
+            "C:\\Users\\OEM\\AppData\\Local\\Python\\pythoncore-3.14-64\\Scripts\\pytest.EXE",
+            "--ignore=harness",
+        ]
+    )
+
+    assert cmd[-2:] == ["--ignore=.pytest_cache", "--ignore=.tmp"]
+
+
 def test_prepare_verification_cmd_leaves_non_pytest_commands_unchanged():
     assert _prepare_verification_cmd(["npm", "test"]) == ["npm", "test"]
 

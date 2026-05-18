@@ -18,7 +18,7 @@ from calibrate import (
 )
 from fix import handle_verdict, run_batch_retry_loop, run_fix_cycle
 from harness_state import HarnessState
-from regression import run_phase_regression_gate
+from regression import regression_failure_blocks_fix, run_phase_regression_gate
 from state import (
     block_phase_external_dependency,
     block_review_external_dependency,
@@ -574,6 +574,9 @@ def handle_fixing(harness: Harness, state: dict, phase_id: int):
 def handle_regression_testing(harness: Harness, state: dict, phase_id: int):
     if run_phase_regression_gate(harness, state, phase_id):
         return HarnessState.NEXT_PHASE
+    phase = find_phase(state, phase_id)
+    if regression_failure_blocks_fix(phase):
+        return HarnessState.HALTED
     return HarnessState.FIXING
 
 

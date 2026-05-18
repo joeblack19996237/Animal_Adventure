@@ -21,6 +21,7 @@ from state import (
     find_task,
     halt_issue,
     halt_task,
+    save_state,
     update_state,
 )
 from verify import (
@@ -36,6 +37,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 TECH_DEBT_PATH = Path("workspace/tech_debt.jsonl")
+REGRESSION_INFRA_FAILURE_KINDS = {"infra_failure", "timeout"}
 
 
 def _phase_spec_context(state: dict, phase_id: int) -> str:
@@ -207,6 +209,9 @@ def run_fix_cycle(harness: Harness, state: dict, phase_id: int) -> None:
         open_issues = _open_critical_high(state, phase_id)
         if not open_issues:
             break
+
+        if _block_regression_infra_issues(open_issues, state, phase_id):
+            return
 
         open_issues = _skip_excluded_issues(
             open_issues,
@@ -505,6 +510,36 @@ def _open_critical_high(state: dict, phase_id: int) -> list:
         for i in phase.get("review", {}).get("issues", [])
         if i.get("status") == "open" and i.get("severity") in ("CRITICAL", "HIGH")
     ]
+
+
+def _block_regression_infra_issues(
+    issues: list[dict], state: dict, phase_id: int
+) -> bool:
+    blocked = False
+    for issue in issues:
+        if issue.get("source") != "regression":
+            continue
+        if issue.get("failure_kind") not in REGRESSION_INFRA_FAILURE_KINDS:
+            continue
+        reason = (
+            "regression issue is a harness/environment blocker, not a product "
+            "FIX task"
+        )
+        issue["status"] = "halted"
+        last_error = issue.setdefault("last_error", [])
+        if not last_error or last_error[-1] != reason:
+            last_error.append(reason)
+        blocked = True
+    if blocked:
+        phase = find_phase(state, phase_id)
+        if phase:
+            phase.setdefault("review", {})["status"] = "error"
+        save_state(state)
+        logger.error(
+            "[FIX] Phase %d has regression infra issue(s); not invoking builder.",
+            phase_id,
+        )
+    return blocked
 
 
 def _tech_debt_existing_ids() -> set[str]:

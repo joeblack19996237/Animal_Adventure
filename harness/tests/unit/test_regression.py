@@ -6,7 +6,13 @@ import pytest
 
 import regression as regression_mod
 import state as state_mod
-from regression import collect_regression_commands, run_phase_regression_gate
+from regression import (
+    REGRESSION_INFRA_FAILURE,
+    REGRESSION_PRODUCT_FAILURE,
+    REGRESSION_TIMEOUT,
+    collect_regression_commands,
+    run_phase_regression_gate,
+)
 from state import save_state
 
 
@@ -125,7 +131,7 @@ def test_run_phase_regression_gate_reopens_existing_regression_issue(
     sample_state, sample_config, sample_profile, monkeypatch
 ):
     failure = {
-        "cmd": ["pytest", "--ignore=.pytest_cache"],
+        "cmd": ["pytest", "--ignore=.pytest_cache", "--ignore=.tmp"],
         "returncode": 1,
         "stdout_tail": "failed",
         "stderr_tail": "boom",
@@ -165,3 +171,80 @@ def test_run_phase_regression_gate_reopens_existing_regression_issue(
     assert len(issues) == 1
     assert issues[0]["status"] == "open"
     assert issues[0]["attempts"] == 1
+
+
+def test_run_phase_regression_gate_tmp_permission_error_blocks_without_issue(
+    sample_state, sample_config, sample_profile, monkeypatch
+):
+    save_state(sample_state)
+    harness = _make_harness(sample_config, sample_profile)
+    stdout = (
+        "E   PermissionError: [WinError 5] Access is denied: "
+        "'D:\\Animal_Adventure\\.tmp\\pytest\\pytest-of-OEM'\n"
+        "ERROR .tmp/pytest/pytest-of-OEM - PermissionError\n"
+        "Interrupted: 2 errors during collection"
+    )
+    monkeypatch.setattr(
+        regression_mod,
+        "run_command",
+        lambda cmd, **kwargs: (cmd, _completed(returncode=2, stdout=stdout)),
+    )
+
+    assert run_phase_regression_gate(harness, sample_state, 1) is False
+
+    phase = sample_state["phases"][0]
+    regression = phase["regression"]
+    assert regression["status"] == "blocked"
+    assert regression["failure_kind"] == REGRESSION_INFRA_FAILURE
+    assert regression["issues"] == []
+    assert phase["review"]["issues"] == []
+    assert Path(regression["artifact_path"]).exists()
+
+
+def test_run_phase_regression_gate_timeout_blocks_without_issue(
+    sample_state, sample_config, sample_profile, monkeypatch
+):
+    save_state(sample_state)
+    harness = _make_harness(sample_config, sample_profile)
+    monkeypatch.setattr(
+        regression_mod,
+        "run_command",
+        lambda cmd, **kwargs: (
+            cmd,
+            _completed(returncode=124, stderr="command timed out after 600s"),
+        ),
+    )
+
+    assert run_phase_regression_gate(harness, sample_state, 1) is False
+
+    phase = sample_state["phases"][0]
+    regression = phase["regression"]
+    assert regression["status"] == "blocked"
+    assert regression["failure_kind"] == REGRESSION_TIMEOUT
+    assert phase["review"]["issues"] == []
+
+
+def test_run_phase_regression_gate_product_failure_keeps_high_issue_flow(
+    sample_state, sample_config, sample_profile, monkeypatch
+):
+    save_state(sample_state)
+    harness = _make_harness(sample_config, sample_profile)
+    monkeypatch.setattr(
+        regression_mod,
+        "run_command",
+        lambda cmd, **kwargs: (
+            cmd,
+            _completed(returncode=1, stdout="FAILED tests/test_game.py::test_score"),
+        ),
+    )
+
+    assert run_phase_regression_gate(harness, sample_state, 1) is False
+
+    phase = sample_state["phases"][0]
+    regression = phase["regression"]
+    issue = phase["review"]["issues"][-1]
+    assert regression["status"] == "failed"
+    assert regression["failure_kind"] == REGRESSION_PRODUCT_FAILURE
+    assert phase["review"]["status"] == "fixing"
+    assert issue["severity"] == "HIGH"
+    assert issue["failure_kind"] == REGRESSION_PRODUCT_FAILURE

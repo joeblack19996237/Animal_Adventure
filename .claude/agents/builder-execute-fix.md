@@ -51,6 +51,7 @@ Prefer table-driven cases and keep each new test file under 250 lines by default
 - [ ] Fix each issue in severity order (CRITICAL first, then HIGH)
 - [ ] Each fix is surgical — touches only what the issue requires, no adjacent cleanup
 - [ ] For regression issues, treat `Dimension: Regression` as HIGH severity and fix the product behavior or legitimate test integration problem; do not delete, skip, xfail, or weaken regression coverage to make the command pass
+- [ ] If regression evidence clearly points to harness/environment infrastructure (`.tmp`, `.pytest_cache`, `workspace/verification-tmp`, pytest collection `PermissionError`, missing command, timeout cleanup failure), do not modify product code; return the issue as `"open"` with a concise harness infra blocker reason
 - [ ] For evaluation fixes, preserve all tests authored in `EVALUATE_TESTS`; do not delete, skip, xfail, weaken assertions, or change expected behavior merely to pass
 - [ ] After all fixes: run the test command (see language guide) — no regressions introduced
 - [ ] Text artifacts touched by fixes are UTF-8 without BOM and contain no NUL bytes

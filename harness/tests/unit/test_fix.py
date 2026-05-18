@@ -1703,3 +1703,30 @@ def test_run_fix_cycle_defers_excluded_path_issue(
     assert not fix_called[0]
     assert state["phases"][0]["review"]["issues"][0]["status"] == "deferred"
     assert state["phases"][0]["review"]["status"] == "fixed"
+
+
+def test_run_fix_cycle_blocks_regression_infra_issue_without_builder(
+    sample_config, monkeypatch, tmp_workspace
+):
+    harness = _make_harness(sample_config)
+    state = _state_with_issues(["HIGH"])
+    issue = state["phases"][0]["review"]["issues"][0]
+    issue["source"] = "regression"
+    issue["failure_kind"] = "infra_failure"
+    issue["file"] = "FULL_REGRESSION"
+    state_mod.save_state(state)
+
+    report = tmp_workspace / "workspace" / "review_report.md"
+    report.write_text("## 1.1 Full regression failed\nDetails.", encoding="utf-8")
+    fix_called = [False]
+
+    monkeypatch.setattr(
+        agents, "fix_issues", lambda *a, **kw: fix_called.__setitem__(0, True)
+    )
+
+    run_fix_cycle(harness, state, 1)
+
+    assert not fix_called[0]
+    assert issue["status"] == "halted"
+    assert state["phases"][0]["review"]["status"] == "error"
+    assert "harness/environment blocker" in issue["last_error"][-1]

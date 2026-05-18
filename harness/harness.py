@@ -464,7 +464,7 @@ def _current_error(
     for issue in review.get("issues", []):
         if issue.get("status") == "halted":
             return _latest_error(issue)
-    if regression.get("status") in ("failed", "error", "halted"):
+    if regression.get("status") in ("failed", "blocked", "error", "halted"):
         return _latest_error(regression)
     if evaluate.get("status") in ("blocked_external_dependency", "timeout", "error"):
         return _latest_error(evaluate)
@@ -524,7 +524,7 @@ def _approx_harness_state(state: dict, phase: dict) -> str:
             return HarnessState.REVIEWING.name
         if review.get("status") == "fixing":
             return HarnessState.FIXING.name
-        if regression.get("status") in ("running", "failed", "pending"):
+        if regression.get("status") in ("running", "failed", "blocked", "pending"):
             return HarnessState.REGRESSION_TESTING.name
         if review.get("status") in ("complete", "fixed"):
             if regression.get("status") == "passed":

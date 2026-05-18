@@ -242,6 +242,42 @@ def test_status_reports_external_dependency_block():
     assert summary["last_error"] == "claude API error 429"
 
 
+def test_status_reports_blocked_regression_error():
+    state = {
+        "spec_file": "docs/spec.md",
+        "current_phase": 2,
+        "phases": [
+            {
+                "id": 2,
+                "title": "Integration",
+                "status": "building",
+                "tasks": [{"id": "2.1", "status": "complete"}],
+                "review": {
+                    "status": "complete",
+                    "verdict": "APPROVE",
+                    "issues": [],
+                },
+                "regression": {
+                    "status": "blocked",
+                    "failure_kind": "infra_failure",
+                    "last_error": [
+                        {
+                            "reason": "full regression blocked by harness or environment failure",
+                            "details": ["pytest collected .tmp permission error"],
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+
+    summary = _summarize_status(state, {"active": False})
+
+    assert summary["harness_state"] == "REGRESSION_TESTING"
+    assert summary["regression_status"] == "blocked"
+    assert "full regression blocked" in summary["last_error"]
+
+
 def test_status_separates_current_and_historical_errors():
     state = {
         "spec_file": "docs/spec.md",
