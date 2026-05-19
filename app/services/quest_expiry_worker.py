@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.db import connect_db
+from app.logging_config import emit_quest_auto_fail as _emit_quest_auto_fail
 
 logger = logging.getLogger(__name__)
 
@@ -95,12 +96,7 @@ class QuestExpiryWorker:
                 (npc_id,),
             )
             conn.commit()
-            logger.info(
-                "Expiry scanner failed quest %d (player=%s quest_id=%s)",
-                quest_instance_id,
-                player_id,
-                quest_id,
-            )
+            _emit_quest_auto_fail(logger, player_id, quest_id, quest_instance_id)
             return True
         except Exception as e:
             conn.rollback()

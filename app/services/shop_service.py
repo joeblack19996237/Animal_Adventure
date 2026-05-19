@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 from app.db import connect_db
+from app.logging_config import emit_shop_purchase as _emit_shop_purchase
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +87,7 @@ class ShopService:
         finally:
             conn.close()
 
-        logger.info(
-            "Shop purchase player=%s item=%s price=%d new_balance=%d",
-            player_id,
-            item_id,
-            price,
-            new_coins,
-        )
+        _emit_shop_purchase(logger, player_id, item_id, price, new_coins)
         return {
             "type": "purchase_success",
             "item_id": item_id,

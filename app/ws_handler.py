@@ -10,6 +10,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
 from app.db import connect_db
+from app.logging_config import emit_bootstrap_failure as _emit_bootstrap_failure
+from app.logging_config import emit_duplicate_session as _emit_duplicate_session
 from app.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -85,6 +87,7 @@ async def _evict_existing_session(player_id: str) -> None:
     existing = _active_sessions.pop(player_id, None)
     if existing is None:
         return
+    _emit_duplicate_session(logger, player_id)
     try:
         await existing.send_text(
             json.dumps(
@@ -317,7 +320,7 @@ async def websocket_endpoint(
         try:
             state_sync = await asyncio.to_thread(_load_state_sync, db_path, player_id)
         except Exception as exc:
-            logger.error("DB error on connect for player_id=%s: %s", player_id, exc)
+            _emit_bootstrap_failure(logger, player_id=player_id, error=str(exc))
             await websocket.send_text(
                 json.dumps(
                     {
@@ -330,6 +333,9 @@ async def websocket_endpoint(
             return
 
         if state_sync is None:
+            _emit_bootstrap_failure(
+                logger, player_id=player_id, error="player_not_found"
+            )
             await websocket.send_text(
                 json.dumps(
                     {

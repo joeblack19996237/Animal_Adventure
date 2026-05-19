@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.db import connect_db
+from app.logging_config import emit_quest_complete as _emit_quest_complete
 
 logger = logging.getLogger(__name__)
 
@@ -418,11 +419,8 @@ class QuestService:
             raise
         finally:
             conn.close()
-        logger.info(
-            "Quest completed player=%s quest_id=%s instance=%d",
-            player_id,
-            quest_id,
-            quest_instance_id,
+        _emit_quest_complete(
+            logger, player_id, quest_id, quest_instance_id, coins_awarded
         )
         return {
             "type": "quest_completed",

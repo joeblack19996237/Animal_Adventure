@@ -85,6 +85,154 @@ def emit_shutdown(app_logger: logging.Logger) -> dict:
     )
 
 
+def emit_functional_log(
+    app_logger: logging.Logger,
+    event_type: str,
+    message: str,
+    level: str = "INFO",
+    player_id: str | None = None,
+    connection_id: str | None = None,
+    session_id: str | None = None,
+    error_type: str | None = None,
+    context: dict | None = None,
+) -> dict:
+    record = build_log_record(
+        message=message,
+        level=level,
+        event_type=event_type,
+        player_id=player_id,
+        connection_id=connection_id,
+        session_id=session_id,
+        error_type=error_type,
+        context=context,
+    )
+    log_method = getattr(app_logger, level.lower(), app_logger.info)
+    log_method(_JSON_DUMPS(record))
+    return record
+
+
+def emit_quest_complete(
+    app_logger: logging.Logger,
+    player_id: str,
+    quest_id: str,
+    quest_instance_id: int,
+    coins_awarded: int = 0,
+) -> dict:
+    return emit_functional_log(
+        app_logger,
+        event_type="quest_complete",
+        message=f"Quest completed player={player_id} quest_id={quest_id} instance={quest_instance_id}",
+        player_id=player_id,
+        context={
+            "quest_id": quest_id,
+            "quest_instance_id": quest_instance_id,
+            "coins_awarded": coins_awarded,
+        },
+    )
+
+
+def emit_quest_auto_fail(
+    app_logger: logging.Logger,
+    player_id: str,
+    quest_id: str,
+    quest_instance_id: int,
+) -> dict:
+    return emit_functional_log(
+        app_logger,
+        event_type="quest_auto_fail",
+        message=(
+            f"Expiry scanner failed quest {quest_instance_id} "
+            f"player={player_id} quest_id={quest_id}"
+        ),
+        player_id=player_id,
+        context={"quest_id": quest_id, "quest_instance_id": quest_instance_id},
+    )
+
+
+def emit_duplicate_session(
+    app_logger: logging.Logger,
+    player_id: str,
+) -> dict:
+    return emit_functional_log(
+        app_logger,
+        event_type="duplicate_session",
+        message=f"Duplicate session replaced for player={player_id}",
+        player_id=player_id,
+        context={"player_id": player_id},
+    )
+
+
+def emit_movement_rate_limit(
+    app_logger: logging.Logger,
+    player_id: str,
+) -> dict:
+    return emit_functional_log(
+        app_logger,
+        event_type="movement_rate_limit",
+        message=f"Movement rate limit exceeded for player={player_id}",
+        player_id=player_id,
+        context={"player_id": player_id},
+    )
+
+
+def emit_bootstrap_failure(
+    app_logger: logging.Logger,
+    player_id: str | None = None,
+    error: str | None = None,
+) -> dict:
+    return emit_functional_log(
+        app_logger,
+        event_type="bootstrap_failure",
+        level="ERROR",
+        message=f"Bootstrap load failure player={player_id}: {error}",
+        player_id=player_id,
+        error_type="bootstrap_failure",
+        context={"error": error},
+    )
+
+
+def emit_shop_purchase(
+    app_logger: logging.Logger,
+    player_id: str,
+    item_id: str,
+    price: int,
+    new_balance: int,
+) -> dict:
+    return emit_functional_log(
+        app_logger,
+        event_type="shop_purchase",
+        message=f"Shop purchase player={player_id} item={item_id} price={price}",
+        player_id=player_id,
+        context={"item_id": item_id, "price": price, "new_balance": new_balance},
+    )
+
+
+def emit_reconnect(
+    app_logger: logging.Logger,
+    player_id: str,
+) -> dict:
+    return emit_functional_log(
+        app_logger,
+        event_type="reconnect",
+        message=f"Player reconnected player={player_id}",
+        player_id=player_id,
+        context={"player_id": player_id},
+    )
+
+
+def emit_reconnect_timeout(
+    app_logger: logging.Logger,
+    player_id: str,
+) -> dict:
+    return emit_functional_log(
+        app_logger,
+        event_type="reconnect_timeout",
+        message=f"Reconnect timeout for player={player_id}",
+        player_id=player_id,
+        context={"player_id": player_id},
+    )
+
+
 def configure_logging(log_dir: Path) -> list[logging.Handler]:
     log_dir.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(SERVICE_NAME)
