@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import logging
 import logging.handlers
 from datetime import datetime, timezone
 from pathlib import Path
+
+_JSON_DUMPS = json.dumps
 
 APP_LOG_BACKUP_COUNT = 14
 ERROR_LOG_BACKUP_COUNT = 30
@@ -51,6 +54,35 @@ def build_log_record(
         "stack_trace": stack_trace,
         "resource_snapshot": resource_snapshot,
     }
+
+
+def emit_lifecycle_log(
+    app_logger: logging.Logger,
+    event_type: str,
+    message: str,
+    context: dict | None = None,
+) -> dict:
+    record = build_log_record(message=message, event_type=event_type, context=context)
+    app_logger.info(_JSON_DUMPS(record))
+    return record
+
+
+def emit_startup(app_logger: logging.Logger) -> dict:
+    return emit_lifecycle_log(
+        app_logger, event_type="startup", message="application startup"
+    )
+
+
+def emit_ready(app_logger: logging.Logger, context: dict | None = None) -> dict:
+    return emit_lifecycle_log(
+        app_logger, event_type="ready", message="application ready", context=context
+    )
+
+
+def emit_shutdown(app_logger: logging.Logger) -> dict:
+    return emit_lifecycle_log(
+        app_logger, event_type="shutdown", message="application shutdown"
+    )
 
 
 def configure_logging(log_dir: Path) -> list[logging.Handler]:

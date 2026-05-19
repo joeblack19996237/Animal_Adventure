@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from app.logging_config import emit_ready, emit_shutdown, emit_startup
 from app.routes.players import router as players_router
 from app.services.quest_expiry_worker import SCAN_INTERVAL_SECONDS, QuestExpiryWorker
 from app.settings import Settings
@@ -35,6 +36,7 @@ async def _expiry_scan_loop(worker: QuestExpiryWorker) -> None:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    emit_startup(logger)
     worker = QuestExpiryWorker(
         db_path=_settings.database_path,
         config_dir=Path("config"),
@@ -43,6 +45,7 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         worker.scan_expired_quests()
     except Exception:
         logger.exception("Startup expiry scan error")
+    emit_ready(logger)
     task = asyncio.create_task(_expiry_scan_loop(worker))
     yield
     task.cancel()
@@ -50,6 +53,7 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         await task
     except asyncio.CancelledError:
         pass
+    emit_shutdown(logger)
 
 
 app = FastAPI(title="Animal Adventure API", lifespan=_lifespan)
