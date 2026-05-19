@@ -253,31 +253,31 @@ async def _handle_messages(
     try:
         while True:
             raw = await websocket.receive_text()
-            try:
-                msg = json.loads(raw)
-            except json.JSONDecodeError:
+            msg, error_code = validate_client_event(raw)
+            if error_code == "payload_too_large":
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "code": "payload_too_large",
+                            "message": "Payload exceeds maximum allowed size.",
+                        }
+                    )
+                )
+                continue
+            if error_code == "invalid_message":
                 await websocket.send_text(
                     json.dumps(
                         {
                             "type": "error",
                             "code": "invalid_message",
-                            "message": "Message must be valid JSON.",
+                            "message": "Message must be a valid JSON object.",
                         }
                     )
                 )
                 continue
 
-            if not isinstance(msg, dict):
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "code": "invalid_message",
-                            "message": "Message must be a JSON object.",
-                        }
-                    )
-                )
-                continue
+            assert msg is not None  # error_code is None means msg is a valid dict
 
             body_player_id = msg.get("player_id")
             if body_player_id is not None and body_player_id != player_id:
