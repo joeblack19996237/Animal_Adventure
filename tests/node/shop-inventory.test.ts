@@ -3,6 +3,7 @@ import { ShopPanel } from '../../src/ui/ShopPanel';
 import type { ShopItem } from '../../src/ui/ShopPanel';
 import { InventoryPanel } from '../../src/ui/InventoryPanel';
 import type { InventoryEntry } from '../../src/ui/InventoryPanel';
+import { ProgressionState } from '../../src/state/ProgressionState';
 
 const SHOP_ITEMS: ShopItem[] = [{ itemId: 'potion_l0', price: 10, unlockLevel: 0 }];
 
@@ -240,5 +241,100 @@ describe('InventoryPanel', () => {
       inventoryPanel.applyInventoryUpdate([], []);
       expect(inventoryPanel.canUseItem('potion_l0')).toBe(false);
     });
+  });
+});
+
+describe('ProgressionState', () => {
+  it('initializes from state_sync progress data', () => {
+    const state = new ProgressionState();
+    state.applyStateSync({
+      used_potion_count: 1,
+      unique_completed_quest_ids: ['quest_hopper_blanket'],
+      level: 0,
+      unlocked_regions: ['spawn'],
+    });
+    expect(state.getUsedPotionCount()).toBe(1);
+    expect(state.getUniqueCompletedQuestIds()).toHaveLength(1);
+    expect(state.getLevel()).toBe(0);
+    expect(state.getUnlockedRegions()).toContain('spawn');
+  });
+
+  it('applyPotionUsed increments used_potion_count each time use_item is processed', () => {
+    const state = new ProgressionState();
+    state.applyStateSync({ used_potion_count: 0, unique_completed_quest_ids: [], level: 0, unlocked_regions: ['spawn'] });
+    state.applyPotionUsed();
+    state.applyPotionUsed();
+    expect(state.getUsedPotionCount()).toBe(2);
+  });
+
+  it.each([
+    [0, [], false],
+    [2, ['q1'], false],
+    [1, ['q1', 'q2'], false],
+    [2, ['q1', 'q2'], true],
+  ])('meetsL3Conditions(%i potions, %i quests) → %s', (potions, quests, expected) => {
+    const state = new ProgressionState();
+    state.applyStateSync({ used_potion_count: potions, unique_completed_quest_ids: quests, level: 0, unlocked_regions: ['spawn'] });
+    expect(state.meetsL3Conditions()).toBe(expected);
+  });
+
+  it('applyLevelUp updates level and unlocked_regions from level_up message', () => {
+    const state = new ProgressionState();
+    state.applyStateSync({ used_potion_count: 0, unique_completed_quest_ids: [], level: 0, unlocked_regions: ['spawn'] });
+    state.applyLevelUp(3, ['spawn', 'playground']);
+    expect(state.getLevel()).toBe(3);
+    expect(state.getUnlockedRegions()).toContain('playground');
+  });
+});
+
+describe('Full Potion purchase and use integration flow', () => {
+  const CONSUMABLE_IDS = ['potion_l0'];
+
+  it('shop_buy → shop_result → inventory_updated → use_item → used_potion_count increments → level_up triggers at L3', () => {
+    const onBuy = vi.fn();
+    const onUse = vi.fn();
+    const shopPanel = new ShopPanel({ items: SHOP_ITEMS, onBuy });
+    const inventoryPanel = new InventoryPanel({ consumableIds: CONSUMABLE_IDS, onUse });
+    const progression = new ProgressionState();
+
+    progression.applyStateSync({
+      used_potion_count: 0,
+      unique_completed_quest_ids: ['quest_hopper_blanket', 'quest_copper_bagpipe'],
+      level: 0,
+      unlocked_regions: ['spawn'],
+    });
+    expect(progression.meetsL3Conditions()).toBe(false);
+
+    // First Potion: shop_buy → shop_result → inventory_updated → use_item
+    shopPanel.show(25);
+    shopPanel.buyItem('potion_l0');
+    expect(onBuy).toHaveBeenCalledWith('potion_l0');
+    shopPanel.applyShopResult(true, 15);
+    expect(shopPanel.getCoinsBalance()).toBe(15);
+
+    inventoryPanel.applyInventoryUpdate([], [{ itemId: 'potion_l0', quantity: 1, slotType: 'equipment' }]);
+    expect(inventoryPanel.canUseItem('potion_l0')).toBe(true);
+    inventoryPanel.useItem('potion_l0');
+    expect(onUse).toHaveBeenCalledWith('potion_l0');
+    inventoryPanel.applyInventoryUpdate([], []);
+    progression.applyPotionUsed();
+    expect(progression.getUsedPotionCount()).toBe(1);
+    expect(progression.meetsL3Conditions()).toBe(false);
+
+    // Second Potion: same flow
+    shopPanel.show(15);
+    shopPanel.buyItem('potion_l0');
+    shopPanel.applyShopResult(true, 5);
+    inventoryPanel.applyInventoryUpdate([], [{ itemId: 'potion_l0', quantity: 1, slotType: 'equipment' }]);
+    inventoryPanel.useItem('potion_l0');
+    inventoryPanel.applyInventoryUpdate([], []);
+    progression.applyPotionUsed();
+    expect(progression.getUsedPotionCount()).toBe(2);
+    expect(progression.meetsL3Conditions()).toBe(true);
+
+    // level_up received from server
+    progression.applyLevelUp(3, ['spawn', 'playground']);
+    expect(progression.getLevel()).toBe(3);
+    expect(progression.getUnlockedRegions()).toContain('playground');
   });
 });
