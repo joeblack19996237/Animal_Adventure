@@ -20,6 +20,21 @@ router = APIRouter()
 
 _active_sessions: dict[str, WebSocket] = {}
 
+MAX_CLIENT_EVENT_BYTES = 4096
+
+
+def validate_client_event(raw: str) -> tuple[dict | None, str | None]:
+    """Validate a raw WebSocket message string. Returns (msg, error_code)."""
+    if len(raw.encode("utf-8")) > MAX_CLIENT_EVENT_BYTES:
+        return None, "payload_too_large"
+    try:
+        msg = json.loads(raw)
+    except json.JSONDecodeError:
+        return None, "invalid_message"
+    if not isinstance(msg, dict):
+        return None, "invalid_message"
+    return msg, None
+
 
 def get_ws_db_path() -> Path:
     return Settings().database_path
