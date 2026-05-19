@@ -20,28 +20,16 @@ describe('NPC', () => {
       expect(npc.isPlayerInRange(2715, 3200)).toBe(true);
     });
 
-    it('returns true when player is exactly at interaction radius boundary', () => {
-      const npc = new NPC({ id: 'copper', name: 'Copper', x: 3150, y: 3620, interactionRadius: 160 });
-      expect(npc.isPlayerInRange(3150 + 160, 3620)).toBe(true);
-    });
-
-    it('returns false when player is beyond interaction radius', () => {
-      const npc = new NPC({ id: 'elisa', name: 'Elisa', x: 2715, y: 4050, interactionRadius: 160 });
-      expect(npc.isPlayerInRange(2715 + 161, 4050)).toBe(false);
-    });
-
-    it('uses euclidean distance for radius check', () => {
+    it('uses euclidean distance — on boundary returns true, one pixel beyond returns false', () => {
       const npc = new NPC({ id: 'hopper', name: 'Hopper', x: 0, y: 0, interactionRadius: 100 });
-      // (60, 80) has euclidean distance of 100 — exactly on boundary
       expect(npc.isPlayerInRange(60, 80)).toBe(true);
-      // (61, 80) is beyond 100
       expect(npc.isPlayerInRange(61, 80)).toBe(false);
     });
   });
 });
 
 describe('WorldItem', () => {
-  it('stores id, item_id, quest_instance_id, position, and initial status on construction', () => {
+  it('stores id, itemId, questInstanceId, position, and initial status on construction', () => {
     const item = new WorldItem({
       id: 'wi-1',
       itemId: 'item_blanket',
@@ -78,17 +66,11 @@ describe('WorldItem', () => {
   });
 
   describe('expire', () => {
-    it('transitions status from spawned to expired', () => {
+    it('transitions status from spawned to expired and is idempotent on already-expired item', () => {
       const item = new WorldItem({ id: 'wi-5', itemId: 'item_blanket', questInstanceId: 1, x: 2600, y: 3100 });
       item.expire();
       expect(item.status).toBe(WorldItemStatus.Expired);
-    });
-
-    it('is idempotent when called on an already expired item', () => {
-      const item = new WorldItem({ id: 'wi-6', itemId: 'item_blanket', questInstanceId: 1, x: 2600, y: 3100 });
-      item.expire();
       expect(() => item.expire()).not.toThrow();
-      expect(item.status).toBe(WorldItemStatus.Expired);
     });
 
     it('throws when attempting to expire a picked_up item', () => {
@@ -99,19 +81,13 @@ describe('WorldItem', () => {
   });
 
   describe('isPlayerInPickupRange', () => {
-    it('returns true when player is within pickup radius', () => {
+    it.each([
+      { px: 0, py: 0, radius: 96, expected: true, label: 'within radius' },
+      { px: 96, py: 0, radius: 96, expected: true, label: 'on boundary' },
+      { px: 97, py: 0, radius: 96, expected: false, label: 'beyond radius' },
+    ])('returns $expected when player is $label', ({ px, py, radius, expected }) => {
       const item = new WorldItem({ id: 'wi-8', itemId: 'item_blanket', questInstanceId: 1, x: 0, y: 0 });
-      expect(item.isPlayerInPickupRange(0, 0, 96)).toBe(true);
-    });
-
-    it('returns true when player is exactly at pickup radius boundary', () => {
-      const item = new WorldItem({ id: 'wi-9', itemId: 'item_blanket', questInstanceId: 1, x: 0, y: 0 });
-      expect(item.isPlayerInPickupRange(96, 0, 96)).toBe(true);
-    });
-
-    it('returns false when player is beyond pickup radius', () => {
-      const item = new WorldItem({ id: 'wi-10', itemId: 'item_blanket', questInstanceId: 1, x: 0, y: 0 });
-      expect(item.isPlayerInPickupRange(97, 0, 96)).toBe(false);
+      expect(item.isPlayerInPickupRange(px, py, radius)).toBe(expected);
     });
   });
 });
@@ -137,10 +113,11 @@ describe('QuestPanel', () => {
   });
 
   describe('showOffer', () => {
-    it('renders quest offer with title and rewards', () => {
+    it('renders quest offer with title and rewards and becomes visible', () => {
       const panel = new QuestPanel();
       panel.showOffer(SAMPLE_OFFER);
       const state = panel.getState();
+      expect(panel.isVisible()).toBe(true);
       expect(state.kind).toBe('offer');
       if (state.kind === 'offer') {
         expect(state.offer.title).toBe("Find Hopper's Blanket");
@@ -148,12 +125,6 @@ describe('QuestPanel', () => {
         expect(state.offer.rewards).toHaveLength(2);
         expect(state.offer.rewards[0]).toEqual({ itemId: 'coin', quantity: 25 });
       }
-    });
-
-    it('is visible after showOffer', () => {
-      const panel = new QuestPanel();
-      panel.showOffer(SAMPLE_OFFER);
-      expect(panel.isVisible()).toBe(true);
     });
 
     it('does not show already_active message when displaying an offer', () => {
@@ -164,21 +135,11 @@ describe('QuestPanel', () => {
   });
 
   describe('showAlreadyActive', () => {
-    it('shows "You already have an active quest." message', () => {
-      const panel = new QuestPanel();
-      panel.showAlreadyActive();
-      expect(panel.getDisplayMessage()).toBe('You already have an active quest.');
-    });
-
-    it('is visible after showAlreadyActive', () => {
+    it('shows message, becomes visible, and does not display a quest offer', () => {
       const panel = new QuestPanel();
       panel.showAlreadyActive();
       expect(panel.isVisible()).toBe(true);
-    });
-
-    it('does not display a quest offer', () => {
-      const panel = new QuestPanel();
-      panel.showAlreadyActive();
+      expect(panel.getDisplayMessage()).toBe('You already have an active quest.');
       expect(panel.getState().kind).toBe('already_active');
     });
   });
@@ -236,32 +197,22 @@ describe('QuestPanel', () => {
   });
 
   describe('showCompleted', () => {
-    it('displays completion notification with coins awarded', () => {
-      const panel = new QuestPanel();
-      panel.showCompleted('quest_hopper_blanket', 25);
-      expect(panel.getState().kind).toBe('completed');
-      expect(panel.getDisplayMessage()).toBe('Quest complete! You earned $25.');
-    });
-
-    it('is visible after showCompleted', () => {
+    it('displays completion notification with coins awarded and becomes visible', () => {
       const panel = new QuestPanel();
       panel.showCompleted('quest_hopper_blanket', 25);
       expect(panel.isVisible()).toBe(true);
+      expect(panel.getState().kind).toBe('completed');
+      expect(panel.getDisplayMessage()).toBe('Quest complete! You earned $25.');
     });
   });
 
   describe('showFailed', () => {
-    it('displays failure notification', () => {
-      const panel = new QuestPanel();
-      panel.showFailed('quest_hopper_blanket');
-      expect(panel.getState().kind).toBe('failed');
-      expect(panel.getDisplayMessage()).toBe('Quest failed.');
-    });
-
-    it('is visible after showFailed', () => {
+    it('displays failure notification and becomes visible', () => {
       const panel = new QuestPanel();
       panel.showFailed('quest_hopper_blanket');
       expect(panel.isVisible()).toBe(true);
+      expect(panel.getState().kind).toBe('failed');
+      expect(panel.getDisplayMessage()).toBe('Quest failed.');
     });
   });
 
