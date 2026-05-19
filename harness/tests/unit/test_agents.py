@@ -965,14 +965,19 @@ def test_build_tasks_prompt_contains_phase_data(
     assert "TASK_BUILD" in prompt
 
 
-def test_build_tasks_rejects_task_list_created_status(
-    sample_profile, sample_config, sample_state, monkeypatch
+def test_build_tasks_normalises_task_list_created_status(
+    sample_profile, sample_config, sample_state, monkeypatch, caplog
 ):
+    """status='task_list_created' is a known correction-turn alias; normalise to 'complete'."""
+    import logging
+
     signal = {
         "status": "task_list_created",
         "mode": "TASK_BUILD",
         "phase_id": 1,
-        "tasks": [{"id": "1.1", "title": "T1", "task_type": "foundation"}],
+        "tasks": [
+            {"id": "1.1", "title": "T1", "task_type": "foundation", "description": "d"}
+        ],
     }
     monkeypatch.setattr(
         agents,
@@ -980,12 +985,9 @@ def test_build_tasks_rejects_task_list_created_status(
         lambda *a, **kw: _make_subprocess_result(stdout=_make_envelope(signal)),
     )
     phase = {"id": 1, "title": "Bootstrap", "description": "Set up the project"}
-    with pytest.raises(SystemExit):
+    with caplog.at_level(logging.WARNING, logger="agents"):
         agents.build_tasks(phase, "", sample_profile, sample_config, sample_state)
-    assert (
-        "TASK_BUILD signal invalid: status='task_list_created'"
-        in sample_state["phases"][0]["last_error"][-1]
-    )
+    assert "normalised to 'complete'" in caplog.text
 
 
 def test_build_tasks_rejects_missing_status_when_tasks_present(

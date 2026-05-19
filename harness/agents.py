@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 import re
 import shlex
 import subprocess
 import time
 import uuid
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -391,6 +394,13 @@ def build_tasks(
     )
     signal = result["signal"]
     status = signal.get("status")
+    # Normalise status aliases produced by correction turns.
+    if status in ("ready", "task_list_created"):
+        logger.warning(
+            "[TASK_BUILD] Signal status %r normalised to 'complete'.", status
+        )
+        signal["status"] = "complete"
+        status = "complete"
     tasks = signal.get("tasks")
     if status != "complete" or not isinstance(tasks, list) or not tasks:
         task_detail = "missing" if "tasks" not in signal else type(tasks).__name__
