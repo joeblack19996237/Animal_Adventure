@@ -23,6 +23,32 @@ def get_ws_db_path() -> Path:
     return Settings().database_path
 
 
+def get_ws_config_dir() -> Path:
+    return Path("config")
+
+
+def _load_preset_phrases(config_dir: Path) -> dict[str, str]:
+    path = config_dir / "preset_phrases.json"
+    phrases: list[dict] = json.loads(path.read_text(encoding="utf-8"))
+    return {p["id"]: p["text"] for p in phrases}
+
+
+async def _broadcast_chat(player_id: str, phrase_id: str, message: str) -> None:
+    msg = json.dumps(
+        {
+            "type": "chat_message",
+            "player_id": player_id,
+            "phrase_id": phrase_id,
+            "message": message,
+        }
+    )
+    for ws in list(_active_sessions.values()):
+        try:
+            await ws.send_text(msg)
+        except Exception as exc:
+            logger.debug("Could not broadcast chat_message to player: %s", exc)
+
+
 async def _broadcast_state_update(
     player_id: str, x: float, y: float, direction: str, client_tick: int
 ) -> None:
@@ -203,7 +229,9 @@ def _load_state_sync(db_path: Path, player_id: str) -> dict | None:
         conn.close()
 
 
-async def _handle_messages(websocket: WebSocket, player_id: str) -> None:
+async def _handle_messages(
+    websocket: WebSocket, player_id: str, phrase_lookup: dict[str, str]
+) -> None:
     try:
         while True:
             raw = await websocket.receive_text()
@@ -254,6 +282,22 @@ async def _handle_messages(websocket: WebSocket, player_id: str) -> None:
                     str(msg.get("direction", "down")),
                     int(msg.get("client_tick", 0)),
                 )
+            elif msg.get("type") == "preset_chat":
+                phrase_id = msg.get("phrase_id")
+                if not isinstance(phrase_id, str) or phrase_id not in phrase_lookup:
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "error",
+                                "code": "invalid_message",
+                                "message": "Unknown or missing phrase_id.",
+                            }
+                        )
+                    )
+                else:
+                    await _broadcast_chat(
+                        player_id, phrase_id, phrase_lookup[phrase_id]
+                    )
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected player_id=%s", player_id)
 
@@ -263,6 +307,7 @@ async def websocket_endpoint(
     websocket: WebSocket,
     player_id: str,
     db_path: Path = Depends(get_ws_db_path),
+    config_dir: Path = Depends(get_ws_config_dir),
 ) -> None:
     await websocket.accept()
     await _evict_existing_session(player_id)
@@ -297,8 +342,9 @@ async def websocket_endpoint(
             await websocket.close()
             return
 
+        phrase_lookup = _load_preset_phrases(config_dir)
         await websocket.send_text(json.dumps(state_sync))
-        await _handle_messages(websocket, player_id)
+        await _handle_messages(websocket, player_id, phrase_lookup)
     finally:
         if _active_sessions.get(player_id) is websocket:
             _active_sessions.pop(player_id, None)
