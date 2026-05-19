@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { NPC } from '../../src/entities/NPC';
 import { WorldItem, WorldItemStatus } from '../../src/entities/WorldItem';
+import { QuestPanel } from '../../src/ui/QuestPanel';
+import type { QuestOffer } from '../../src/ui/QuestPanel';
 
 describe('NPC', () => {
   it('stores id, name, position, and interaction radius on construction', () => {
@@ -110,6 +112,172 @@ describe('WorldItem', () => {
     it('returns false when player is beyond pickup radius', () => {
       const item = new WorldItem({ id: 'wi-10', itemId: 'item_blanket', questInstanceId: 1, x: 0, y: 0 });
       expect(item.isPlayerInPickupRange(97, 0, 96)).toBe(false);
+    });
+  });
+});
+
+const SAMPLE_OFFER: QuestOffer = {
+  npcId: 'hopper',
+  questId: 'quest_hopper_blanket',
+  title: "Find Hopper's Blanket",
+  timeLimitSeconds: 300,
+  rewards: [
+    { itemId: 'coin', quantity: 25 },
+    { itemId: 'accessory_sleepy_hat', quantity: 1 },
+  ],
+};
+
+describe('QuestPanel', () => {
+  describe('initial state', () => {
+    it('is hidden and idle on construction', () => {
+      const panel = new QuestPanel();
+      expect(panel.isVisible()).toBe(false);
+      expect(panel.getState().kind).toBe('idle');
+    });
+  });
+
+  describe('showOffer', () => {
+    it('renders quest offer with title and rewards', () => {
+      const panel = new QuestPanel();
+      panel.showOffer(SAMPLE_OFFER);
+      const state = panel.getState();
+      expect(state.kind).toBe('offer');
+      if (state.kind === 'offer') {
+        expect(state.offer.title).toBe("Find Hopper's Blanket");
+        expect(state.offer.questId).toBe('quest_hopper_blanket');
+        expect(state.offer.rewards).toHaveLength(2);
+        expect(state.offer.rewards[0]).toEqual({ itemId: 'coin', quantity: 25 });
+      }
+    });
+
+    it('is visible after showOffer', () => {
+      const panel = new QuestPanel();
+      panel.showOffer(SAMPLE_OFFER);
+      expect(panel.isVisible()).toBe(true);
+    });
+
+    it('does not show already_active message when displaying an offer', () => {
+      const panel = new QuestPanel();
+      panel.showOffer(SAMPLE_OFFER);
+      expect(panel.getDisplayMessage()).toBeNull();
+    });
+  });
+
+  describe('showAlreadyActive', () => {
+    it('shows "You already have an active quest." message', () => {
+      const panel = new QuestPanel();
+      panel.showAlreadyActive();
+      expect(panel.getDisplayMessage()).toBe('You already have an active quest.');
+    });
+
+    it('is visible after showAlreadyActive', () => {
+      const panel = new QuestPanel();
+      panel.showAlreadyActive();
+      expect(panel.isVisible()).toBe(true);
+    });
+
+    it('does not display a quest offer', () => {
+      const panel = new QuestPanel();
+      panel.showAlreadyActive();
+      expect(panel.getState().kind).toBe('already_active');
+    });
+  });
+
+  describe('acceptOffer', () => {
+    it('calls onAccept with quest_id when accepting a displayed offer', () => {
+      const onAccept = vi.fn();
+      const panel = new QuestPanel({ onAccept });
+      panel.showOffer(SAMPLE_OFFER);
+      panel.acceptOffer();
+      expect(onAccept).toHaveBeenCalledOnce();
+      expect(onAccept).toHaveBeenCalledWith('quest_hopper_blanket');
+    });
+
+    it('does nothing when not in offer state', () => {
+      const onAccept = vi.fn();
+      const panel = new QuestPanel({ onAccept });
+      panel.acceptOffer();
+      expect(onAccept).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getCountdownSeconds', () => {
+    it('returns null when not in active state', () => {
+      const panel = new QuestPanel();
+      expect(panel.getCountdownSeconds()).toBeNull();
+    });
+
+    it('returns remaining seconds from expires_at', () => {
+      const expiresAt = '2026-05-10T12:05:00Z';
+      const expiresMs = new Date(expiresAt).getTime();
+      const panel = new QuestPanel({ nowMs: () => expiresMs - 120_000 });
+      panel.startActive('quest_hopper_blanket', expiresAt);
+      expect(panel.getCountdownSeconds()).toBe(120);
+    });
+
+    it('returns 0 when the quest has already expired', () => {
+      const expiresAt = '2026-05-10T12:05:00Z';
+      const expiresMs = new Date(expiresAt).getTime();
+      const panel = new QuestPanel({ nowMs: () => expiresMs + 5_000 });
+      panel.startActive('quest_hopper_blanket', expiresAt);
+      expect(panel.getCountdownSeconds()).toBe(0);
+    });
+
+    it('reflects elapsed time when nowMs advances', () => {
+      const expiresAt = '2026-05-10T12:05:00Z';
+      const expiresMs = new Date(expiresAt).getTime();
+      let fakeNow = expiresMs - 300_000;
+      const panel = new QuestPanel({ nowMs: () => fakeNow });
+      panel.startActive('quest_hopper_blanket', expiresAt);
+      expect(panel.getCountdownSeconds()).toBe(300);
+      fakeNow = expiresMs - 180_000;
+      expect(panel.getCountdownSeconds()).toBe(180);
+    });
+  });
+
+  describe('showCompleted', () => {
+    it('displays completion notification with coins awarded', () => {
+      const panel = new QuestPanel();
+      panel.showCompleted('quest_hopper_blanket', 25);
+      expect(panel.getState().kind).toBe('completed');
+      expect(panel.getDisplayMessage()).toBe('Quest complete! You earned $25.');
+    });
+
+    it('is visible after showCompleted', () => {
+      const panel = new QuestPanel();
+      panel.showCompleted('quest_hopper_blanket', 25);
+      expect(panel.isVisible()).toBe(true);
+    });
+  });
+
+  describe('showFailed', () => {
+    it('displays failure notification', () => {
+      const panel = new QuestPanel();
+      panel.showFailed('quest_hopper_blanket');
+      expect(panel.getState().kind).toBe('failed');
+      expect(panel.getDisplayMessage()).toBe('Quest failed.');
+    });
+
+    it('is visible after showFailed', () => {
+      const panel = new QuestPanel();
+      panel.showFailed('quest_hopper_blanket');
+      expect(panel.isVisible()).toBe(true);
+    });
+  });
+
+  describe('dismiss', () => {
+    it('transitions back to idle from any state', () => {
+      const panel = new QuestPanel();
+      panel.showOffer(SAMPLE_OFFER);
+      panel.dismiss();
+      expect(panel.getState().kind).toBe('idle');
+    });
+
+    it('is not visible after dismiss', () => {
+      const panel = new QuestPanel();
+      panel.showAlreadyActive();
+      panel.dismiss();
+      expect(panel.isVisible()).toBe(false);
     });
   });
 });
