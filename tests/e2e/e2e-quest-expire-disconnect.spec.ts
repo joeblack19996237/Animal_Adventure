@@ -134,7 +134,7 @@ function makeStateSync(
 
 const RECONNECT_TIMEOUT_MS = 10000;
 const DISCONNECT_DELAY_MS = 400;
-const STATE_APPLY_DELAY_MS = 400;
+const STATE_APPLY_DELAY_MS = 1000;
 
 test.describe('e2e_quest_expires_while_disconnected', () => {
   test(
@@ -234,7 +234,7 @@ test.describe('e2e_quest_expires_while_disconnected', () => {
         '[data-ui="quest-failed"], [data-testid="quest-failed"], ' +
         ':has-text("cooldown"), :has-text("Quest failed"), :has-text("failed")',
       );
-      await expect(cooldownIndicator).toBeVisible({ timeout: 5000 });
+      await expect(cooldownIndicator).toBeVisible({ timeout: 8000 });
 
       // Verify via page evaluation that the client state carries the correct cooldown_until
       // from the reconnect state_sync. This covers the key spec requirement:

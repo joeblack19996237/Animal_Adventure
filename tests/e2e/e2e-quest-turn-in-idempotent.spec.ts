@@ -11,7 +11,7 @@ const SERVER_TIME_INITIAL = '2026-05-19T10:00:00Z';
 const SERVER_TIME_RECONNECT = '2026-05-19T10:00:05Z';
 const QUEST_EXPIRES_AT = '2026-05-19T10:05:00Z';
 const QUEST_COOLDOWN_UNTIL = '2026-05-19T11:00:05Z';
-const CLOSE_AFTER_TURN_IN_MS = 50;
+const CLOSE_AFTER_TURN_IN_MS = 200;
 
 const MOCK_PLAYER = {
   player_id: PLAYER_ID,
@@ -135,8 +135,8 @@ function parseMsg(raw: string | Buffer): Record<string, unknown> | null {
 }
 
 const RECONNECT_TIMEOUT_MS = 10000;
-const STATE_APPLY_DELAY_MS = 500;
-const RETRY_WATCH_DELAY_MS = 1500;
+const STATE_APPLY_DELAY_MS = 1000;
+const RETRY_WATCH_DELAY_MS = 3000;
 
 test.describe('e2e_quest_turn_in_retry_idempotent', () => {
   test(

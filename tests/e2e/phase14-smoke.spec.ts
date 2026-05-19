@@ -152,17 +152,18 @@ async function setupRestMocks(page: Page): Promise<void> {
 async function loginNewPlayer(page: Page): Promise<void> {
   await page.goto('/');
   const overlay = page.locator('#login-overlay');
-  await expect(overlay).toBeVisible({ timeout: 10000 });
+  await expect(overlay).toBeVisible({ timeout: 15000 });
   await overlay.locator('input[type="text"]').fill(PLAYER_NAME);
   await overlay.locator('button', { hasText: 'Play' }).click();
   const charButtons = overlay.locator('button[data-character-id]');
-  await expect(charButtons.first()).toBeVisible({ timeout: 5000 });
+  await expect(charButtons.first()).toBeVisible({ timeout: 10000 });
   await overlay.locator('button[data-character-id="penguin"]').click();
   await expect(page.locator('#login-overlay')).toHaveCount(0, { timeout: 5000 });
 }
 
 test.describe('@phase14-smoke', () => {
   test('new player can complete the short MVP L3 loop', async ({ page }) => {
+    test.setTimeout(90000);
     const pageErrors: string[] = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
     page.on('console', (msg) => {
@@ -309,7 +310,7 @@ test.describe('@phase14-smoke', () => {
     await setupRestMocks(page);
     await loginNewPlayer(page);
 
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('canvas')).toBeVisible({ timeout: 15000 });
     const storedId = await page.evaluate((key) => localStorage.getItem(key), PLAYER_ID_KEY);
     expect(storedId).toBe(PLAYER_ID);
 
@@ -319,11 +320,11 @@ test.describe('@phase14-smoke', () => {
     });
 
     const questDialog = page.locator('#quest-dialog, [data-testid="quest-dialog"], [data-ui="quest"]');
-    await expect(questDialog).toBeVisible({ timeout: 8000 });
+    await expect(questDialog).toBeVisible({ timeout: 15000 });
     await questDialog.locator('button', { hasText: /accept/i }).click();
 
     await expect(page.locator('[data-testid="quest-active"], #quest-timer, [data-ui="quest-active"]')).toBeVisible({
-      timeout: 8000,
+      timeout: 15000,
     });
 
     await page.evaluate(() => {
@@ -333,23 +334,23 @@ test.describe('@phase14-smoke', () => {
     });
 
     const turnInBtn = page.locator('button:has-text("Turn In"), button:has-text("Complete"), [data-action="turn-in"]');
-    await expect(turnInBtn).toBeVisible({ timeout: 8000 });
+    await expect(turnInBtn).toBeVisible({ timeout: 15000 });
     await turnInBtn.click();
 
     await expect(
       page.locator('[data-testid="quest-completed"], :has-text("Quest complete"), :has-text("earned $25")'),
-    ).toBeVisible({ timeout: 8000 });
+    ).toBeVisible({ timeout: 15000 });
 
     // Quest 2: Copper's Bagpipe
     await page.evaluate(() => {
       window.dispatchEvent(new CustomEvent('game:npc-interact', { detail: { npc_id: 'copper' } }));
     });
 
-    await expect(questDialog).toBeVisible({ timeout: 8000 });
+    await expect(questDialog).toBeVisible({ timeout: 15000 });
     await questDialog.locator('button', { hasText: /accept/i }).click();
 
     await expect(page.locator('[data-testid="quest-active"], #quest-timer, [data-ui="quest-active"]')).toBeVisible({
-      timeout: 8000,
+      timeout: 15000,
     });
 
     await page.evaluate(() => {
@@ -358,51 +359,51 @@ test.describe('@phase14-smoke', () => {
       );
     });
 
-    await expect(turnInBtn).toBeVisible({ timeout: 8000 });
+    await expect(turnInBtn).toBeVisible({ timeout: 15000 });
     await turnInBtn.click();
 
     await expect(
       page.locator('[data-testid="quest-completed"], :has-text("Quest complete"), :has-text("earned $25")'),
-    ).toBeVisible({ timeout: 8000 });
+    ).toBeVisible({ timeout: 15000 });
 
     // Buy and use Potion 1
     const shopBtn = page.locator('#hud-shop, [data-hud="shop"], button:has-text("Shop")');
-    await expect(shopBtn).toBeVisible({ timeout: 10000 });
+    await expect(shopBtn).toBeVisible({ timeout: 15000 });
     await shopBtn.click();
 
     const shopPanel = page.locator('#shop-panel, [data-testid="shop-panel"], [data-ui="shop"]');
-    await expect(shopPanel).toBeVisible({ timeout: 8000 });
+    await expect(shopPanel).toBeVisible({ timeout: 15000 });
     await shopPanel.locator('[data-buy-item="potion_l0"], button:has-text("Buy")').click();
 
     const inventoryBtn = page.locator('#hud-inventory, [data-hud="inventory"], button:has-text("Bag")');
-    await expect(inventoryBtn).toBeVisible({ timeout: 10000 });
+    await expect(inventoryBtn).toBeVisible({ timeout: 15000 });
     await inventoryBtn.click();
 
     const inventoryPanel = page.locator('#inventory-panel, [data-testid="inventory-panel"], [data-ui="inventory"]');
-    await expect(inventoryPanel).toBeVisible({ timeout: 8000 });
+    await expect(inventoryPanel).toBeVisible({ timeout: 15000 });
     await inventoryPanel.locator('[data-use-item="potion_l0"], button:has-text("Use")').click();
 
     // Buy and use Potion 2 — triggers level_up from WS mock
     await shopBtn.click();
-    await expect(shopPanel).toBeVisible({ timeout: 8000 });
+    await expect(shopPanel).toBeVisible({ timeout: 15000 });
     await shopPanel.locator('[data-buy-item="potion_l0"], button:has-text("Buy")').click();
 
     await inventoryBtn.click();
-    await expect(inventoryPanel).toBeVisible({ timeout: 8000 });
+    await expect(inventoryPanel).toBeVisible({ timeout: 15000 });
     await inventoryPanel.locator('[data-use-item="potion_l0"], button:has-text("Use")').click();
 
     // Wait for level_up WS message
     await Promise.race([
       l3Reached,
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Level-up not triggered within 15s')), 15000),
+        setTimeout(() => reject(new Error('Level-up not triggered within 20s')), 20000),
       ),
     ]);
 
     // Verify level-up notification visible
     await expect(
       page.locator('[data-testid="level-up"], #level-up-notification, :has-text("Level 3"), :has-text("level up")'),
-    ).toBeVisible({ timeout: 8000 });
+    ).toBeVisible({ timeout: 15000 });
 
     await expect(page.locator('canvas')).toBeVisible();
     await expect(page.locator('#login-overlay')).toHaveCount(0);

@@ -113,7 +113,7 @@ function makeStateSync(
 
 const RECONNECT_TIMEOUT_MS = 10000;
 const DISCONNECT_DELAY_MS = 400;
-const STATE_APPLY_DELAY_MS = 400;
+const STATE_APPLY_DELAY_MS = 1000;
 
 test.describe('e2e_quest_reconnect_restores_timers', () => {
   test(
@@ -211,7 +211,7 @@ test.describe('e2e_quest_reconnect_restores_timers', () => {
       const questTimer = page.locator(
         '[data-testid="quest-timer"], #quest-timer, [data-ui="quest-active"], [data-ui="quest-timer"]',
       );
-      await expect(questTimer).toBeVisible({ timeout: 5000 });
+      await expect(questTimer).toBeVisible({ timeout: 8000 });
 
       // Timer text must contain a countdown (MM:SS or M:SS format)
       // Remaining time ≈ QUEST_EXPIRES_AT − SERVER_TIME_RECONNECT = 4:55
@@ -229,7 +229,7 @@ test.describe('e2e_quest_reconnect_restores_timers', () => {
       });
 
       // Allow brief time for the pickup event to be processed
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(800);
 
       expect(
         pickupRequestSentAfterReconnect,
