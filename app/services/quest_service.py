@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -76,6 +77,62 @@ class QuestService:
             conn.close()
         return {"type": "quest_offer", "quest_id": quest_id}
 
+    def _check_accept_guards(
+        self, conn: sqlite3.Connection, player_id: str, npc_id: str
+    ) -> dict | None:
+        active = conn.execute(
+            "SELECT id FROM player_quests WHERE player_id=? AND status='active'",
+            (player_id,),
+        ).fetchone()
+        if active:
+            return {"type": "quest_already_active"}
+        lock = conn.execute(
+            "SELECT player_id FROM quest_locks WHERE npc_id=?", (npc_id,)
+        ).fetchone()
+        if lock and lock[0] != player_id:
+            return {"type": "quest_locked"}
+        return None
+
+    def _insert_quest_lock(
+        self,
+        conn: sqlite3.Connection,
+        npc_id: str,
+        quest_id: str,
+        quest_instance_id: int,
+        player_id: str,
+        expires_at: str,
+        now_iso: str,
+    ) -> None:
+        conn.execute(
+            "INSERT INTO quest_locks "
+            "(npc_id, quest_id, quest_instance_id, player_id, expires_at, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (npc_id, quest_id, quest_instance_id, player_id, expires_at, now_iso),
+        )
+
+    def _spawn_quest_items(
+        self, conn: sqlite3.Connection, quest_instance_id: int, quest_cfg: dict
+    ) -> list[dict]:
+        item_spawn = quest_cfg["item_spawn"]
+        world_items = []
+        for item_id in quest_cfg["required_items"]:
+            wid = str(uuid.uuid4())
+            conn.execute(
+                "INSERT INTO world_item_instances "
+                "(id, quest_instance_id, item_id, x, y, status) VALUES (?, ?, ?, ?, ?, 'spawned')",
+                (wid, quest_instance_id, item_id, item_spawn["x"], item_spawn["y"]),
+            )
+            world_items.append(
+                {
+                    "id": wid,
+                    "item_id": item_id,
+                    "x": item_spawn["x"],
+                    "y": item_spawn["y"],
+                    "status": "spawned",
+                }
+            )
+        return world_items
+
     def accept_quest(self, player_id: str, npc_id: str) -> dict:
         npc = self._npcs[npc_id]
         quest_id = npc["quest_id"]
@@ -88,17 +145,9 @@ class QuestService:
 
         conn = connect_db(self._db_path)
         try:
-            active = conn.execute(
-                "SELECT id FROM player_quests WHERE player_id=? AND status='active'",
-                (player_id,),
-            ).fetchone()
-            if active:
-                return {"type": "quest_already_active"}
-            lock = conn.execute(
-                "SELECT player_id FROM quest_locks WHERE npc_id=?", (npc_id,)
-            ).fetchone()
-            if lock and lock[0] != player_id:
-                return {"type": "quest_locked"}
+            guard = self._check_accept_guards(conn, player_id, npc_id)
+            if guard:
+                return guard
             cursor = conn.execute(
                 "INSERT INTO player_quests "
                 "(player_id, npc_id, quest_id, status, started_at, expires_at) "
@@ -106,30 +155,16 @@ class QuestService:
                 (player_id, npc_id, quest_id, now_iso, expires_at),
             )
             quest_instance_id: int = cursor.lastrowid  # type: ignore[assignment]
-            conn.execute(
-                "INSERT INTO quest_locks "
-                "(npc_id, quest_id, quest_instance_id, player_id, expires_at, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (npc_id, quest_id, quest_instance_id, player_id, expires_at, now_iso),
+            self._insert_quest_lock(
+                conn,
+                npc_id,
+                quest_id,
+                quest_instance_id,
+                player_id,
+                expires_at,
+                now_iso,
             )
-            item_spawn = quest_cfg["item_spawn"]
-            world_items = []
-            for item_id in quest_cfg["required_items"]:
-                wid = str(uuid.uuid4())
-                conn.execute(
-                    "INSERT INTO world_item_instances "
-                    "(id, quest_instance_id, item_id, x, y, status) VALUES (?, ?, ?, ?, ?, 'spawned')",
-                    (wid, quest_instance_id, item_id, item_spawn["x"], item_spawn["y"]),
-                )
-                world_items.append(
-                    {
-                        "id": wid,
-                        "item_id": item_id,
-                        "x": item_spawn["x"],
-                        "y": item_spawn["y"],
-                        "status": "spawned",
-                    }
-                )
+            world_items = self._spawn_quest_items(conn, quest_instance_id, quest_cfg)
             conn.commit()
         except Exception:
             conn.rollback()
@@ -148,6 +183,46 @@ class QuestService:
             "expires_at": expires_at,
             "world_items": world_items,
         }
+
+    def _do_pickup_write(
+        self,
+        conn: sqlite3.Connection,
+        player_id: str,
+        item_instance_id: str,
+        quest_instance_id: int,
+        item_id: str,
+    ) -> dict | None:
+        """Executes pickup DB writes. Returns None on success or an error dict (no writes committed)."""
+        count = conn.execute(
+            "SELECT COUNT(*) FROM player_inventory WHERE player_id=? AND slot_type='inventory'",
+            (player_id,),
+        ).fetchone()[0]
+        if count >= INVENTORY_CAP:
+            return {"type": "inventory_full"}
+        cursor = conn.execute(
+            "UPDATE world_item_instances SET status='picked_up' WHERE id=? AND status='spawned'",
+            (item_instance_id,),
+        )
+        if cursor.rowcount == 0:
+            return {"type": "item_not_found"}
+        conn.execute(
+            "INSERT INTO player_inventory (player_id, item_id, quantity, slot_type) "
+            "VALUES (?, ?, 1, 'inventory')",
+            (player_id, item_id),
+        )
+        pq = conn.execute(
+            "SELECT progress_json FROM player_quests WHERE id=?",
+            (quest_instance_id,),
+        ).fetchone()
+        progress = json.loads(pq[0])
+        collected: list[str] = progress.get("collected_items", [])
+        collected.append(item_id)
+        progress["collected_items"] = collected
+        conn.execute(
+            "UPDATE player_quests SET progress_json=? WHERE id=?",
+            (json.dumps(progress), quest_instance_id),
+        )
+        return None
 
     def pickup_item(
         self, player_id: str, item_instance_id: str, player_x: float, player_y: float
@@ -170,8 +245,9 @@ class QuestService:
         item_id, item_x, item_y = row[0], float(row[1]), float(row[2])
         quest_instance_id, quest_id, npc_id, expires_at = row[4], row[6], row[7], row[8]
         quest_cfg = self._quests[quest_id]
-        pickup_radius = float(quest_cfg["item_spawn"]["pickup_radius"])
-        if self._dist(player_x, player_y, item_x, item_y) > pickup_radius:
+        if self._dist(player_x, player_y, item_x, item_y) > float(
+            quest_cfg["item_spawn"]["pickup_radius"]
+        ):
             return {"type": "item_out_of_range"}
         now_utc = datetime.now(timezone.utc)
         if expires_at and now_utc.isoformat() > expires_at:
@@ -181,32 +257,12 @@ class QuestService:
 
         conn = connect_db(self._db_path)
         try:
-            count = conn.execute(
-                "SELECT COUNT(*) FROM player_inventory WHERE player_id=? AND slot_type='inventory'",
-                (player_id,),
-            ).fetchone()[0]
-            if count >= INVENTORY_CAP:
-                return {"type": "inventory_full"}
-            conn.execute(
-                "UPDATE world_item_instances SET status='picked_up' WHERE id=?",
-                (item_instance_id,),
+            err = self._do_pickup_write(
+                conn, player_id, item_instance_id, quest_instance_id, item_id
             )
-            conn.execute(
-                "INSERT INTO player_inventory (player_id, item_id, quantity, slot_type) VALUES (?, ?, 1, 'inventory')",
-                (player_id, item_id),
-            )
-            pq = conn.execute(
-                "SELECT progress_json FROM player_quests WHERE id=?",
-                (quest_instance_id,),
-            ).fetchone()
-            progress = json.loads(pq[0])
-            collected: list[str] = progress.get("collected_items", [])
-            collected.append(item_id)
-            progress["collected_items"] = collected
-            conn.execute(
-                "UPDATE player_quests SET progress_json=? WHERE id=?",
-                (json.dumps(progress), quest_instance_id),
-            )
+            if err is not None:
+                conn.rollback()
+                return err
             conn.commit()
         except Exception:
             conn.rollback()
