@@ -53,7 +53,7 @@ export class ShopPanel {
   }
 
   applyShopResult(success: boolean, coinsBalance: number): void {
-    void success;
+    if (!success) return;
     this.coinsBalance = coinsBalance;
   }
 }
