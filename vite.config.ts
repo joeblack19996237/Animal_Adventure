@@ -45,6 +45,6 @@ export default defineConfig({
     },
   ],
   test: {
-    exclude: ['**/node_modules/**', 'tests/e2e/**', 'workspace/**', '.pytest_cache/**'],
+    exclude: ['**/node_modules/**', 'tests/e2e/**', 'workspace/**', '.pytest_cache/**', '.tmp/**'],
   },
 });
