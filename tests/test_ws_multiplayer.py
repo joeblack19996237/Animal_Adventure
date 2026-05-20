@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 import threading
 import time
 from pathlib import Path
@@ -45,6 +44,7 @@ def test_two_clients_receive_movement(client: TestClient) -> None:
     player2_id = _create_player(client, "Beta")
 
     p2_messages: list[dict] = []
+    p2_errors: list[Exception] = []
     p2_ready = threading.Event()
     p2_done = threading.Event()
 
@@ -53,13 +53,10 @@ def test_two_clients_receive_movement(client: TestClient) -> None:
             with client.websocket_connect(f"/ws/{player2_id}") as ws2:
                 ws2.receive_json()  # consume state_sync
                 p2_ready.set()
-                try:
-                    msg = ws2.receive_json()  # expect state_update
-                    p2_messages.append(msg)
-                except Exception as exc:
-                    print(f"run_player2 inner error: {exc}", file=sys.stderr)
+                msg = ws2.receive_json()  # expect state_update
+                p2_messages.append(msg)
         except Exception as exc:
-            print(f"run_player2 error: {exc}", file=sys.stderr)
+            p2_errors.append(exc)
         finally:
             if not p2_ready.is_set():
                 p2_ready.set()
@@ -87,6 +84,8 @@ def test_two_clients_receive_movement(client: TestClient) -> None:
 
     p2_done.wait(timeout=5)
     thread.join(timeout=5)
+    if p2_errors:
+        raise p2_errors[0]
 
     assert len(p2_messages) >= 1, (
         f"Player 2 received no messages after state_sync: {p2_messages}"
@@ -111,6 +110,7 @@ def test_player_left_broadcast(client: TestClient) -> None:
     player2_id = _create_player(client, "Waiter")
 
     p2_messages: list[dict] = []
+    p2_errors: list[Exception] = []
     p2_ready = threading.Event()
     p2_done = threading.Event()
 
@@ -119,13 +119,10 @@ def test_player_left_broadcast(client: TestClient) -> None:
             with client.websocket_connect(f"/ws/{player2_id}") as ws2:
                 ws2.receive_json()  # consume state_sync
                 p2_ready.set()
-                try:
-                    msg = ws2.receive_json()  # expect player_left
-                    p2_messages.append(msg)
-                except Exception as exc:
-                    print(f"run_player2 inner error: {exc}", file=sys.stderr)
+                msg = ws2.receive_json()  # expect player_left
+                p2_messages.append(msg)
         except Exception as exc:
-            print(f"run_player2 error: {exc}", file=sys.stderr)
+            p2_errors.append(exc)
         finally:
             if not p2_ready.is_set():
                 p2_ready.set()
@@ -142,6 +139,8 @@ def test_player_left_broadcast(client: TestClient) -> None:
 
     p2_done.wait(timeout=5)
     thread.join(timeout=5)
+    if p2_errors:
+        raise p2_errors[0]
 
     assert len(p2_messages) >= 1, (
         f"Player 2 received no player_left message: {p2_messages}"
