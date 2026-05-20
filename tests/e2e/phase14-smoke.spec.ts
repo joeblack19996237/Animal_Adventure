@@ -127,9 +127,9 @@ async function setupRestMocks(page: Page): Promise<void> {
     }
     if (body['character_id'] === undefined) {
       await route.fulfill({
-        status: 400,
+        status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ detail: 'character_required' }),
+        body: JSON.stringify({ status: 'character_required' }),
       });
       return;
     }
@@ -159,6 +159,19 @@ async function loginNewPlayer(page: Page): Promise<void> {
   await expect(charButtons.first()).toBeVisible({ timeout: 10000 });
   await overlay.locator('button[data-character-id="penguin"]').click();
   await expect(page.locator('#login-overlay')).toHaveCount(0, { timeout: 5000 });
+}
+
+async function waitForGameReady(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const store = (window as unknown as Record<string, unknown>)['__gameStore'] as
+        | Record<string, unknown>
+        | undefined;
+      return store?.['ready'] === true && store?.['stateSyncReceived'] === true && store?.['wsOpen'] === true;
+    },
+    undefined,
+    { timeout: 15000 },
+  );
 }
 
 test.describe('@phase14-smoke', () => {
@@ -311,6 +324,7 @@ test.describe('@phase14-smoke', () => {
     await loginNewPlayer(page);
 
     await expect(page.locator('canvas')).toBeVisible({ timeout: 15000 });
+    await waitForGameReady(page);
     const storedId = await page.evaluate((key) => localStorage.getItem(key), PLAYER_ID_KEY);
     expect(storedId).toBe(PLAYER_ID);
 
@@ -337,11 +351,12 @@ test.describe('@phase14-smoke', () => {
     await expect(turnInBtn).toBeVisible({ timeout: 15000 });
     await turnInBtn.click();
 
-    await expect(
-      page.locator('[data-testid="quest-completed"], :has-text("Quest complete"), :has-text("earned $25")'),
-    ).toBeVisible({ timeout: 15000 });
+    const questComplete = page.locator('[data-testid="quest-completed"]').first();
+    await expect(questComplete).toBeVisible({ timeout: 15000 });
+    await expect(questComplete).toContainText(/Quest complete|earned \$25/i);
 
     // Quest 2: Copper's Bagpipe
+    await waitForGameReady(page);
     await page.evaluate(() => {
       window.dispatchEvent(new CustomEvent('game:npc-interact', { detail: { npc_id: 'copper' } }));
     });
@@ -362,9 +377,8 @@ test.describe('@phase14-smoke', () => {
     await expect(turnInBtn).toBeVisible({ timeout: 15000 });
     await turnInBtn.click();
 
-    await expect(
-      page.locator('[data-testid="quest-completed"], :has-text("Quest complete"), :has-text("earned $25")'),
-    ).toBeVisible({ timeout: 15000 });
+    await expect(questComplete).toBeVisible({ timeout: 15000 });
+    await expect(questComplete).toContainText(/Quest complete|earned \$25/i);
 
     // Buy and use Potion 1
     const shopBtn = page.locator('#hud-shop, [data-hud="shop"], button:has-text("Shop")');
@@ -401,9 +415,9 @@ test.describe('@phase14-smoke', () => {
     ]);
 
     // Verify level-up notification visible
-    await expect(
-      page.locator('[data-testid="level-up"], #level-up-notification, :has-text("Level 3"), :has-text("level up")'),
-    ).toBeVisible({ timeout: 15000 });
+    const levelUpNotification = page.locator('[data-testid="level-up"], #level-up-notification').first();
+    await expect(levelUpNotification).toBeVisible({ timeout: 15000 });
+    await expect(levelUpNotification).toContainText(/Level 3|level up/i);
 
     await expect(page.locator('canvas')).toBeVisible();
     await expect(page.locator('#login-overlay')).toHaveCount(0);

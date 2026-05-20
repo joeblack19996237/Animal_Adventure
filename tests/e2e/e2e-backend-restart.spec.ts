@@ -245,10 +245,9 @@ test.describe('e2e_backend_restart_preserves_progression', () => {
       await expect(page.locator('canvas')).toBeVisible();
 
       // Coins must be restored from SQLite state
-      const coinsDisplay = page.locator(
-        '[data-stat="coins"], #hud-coins, :has-text("$40"), :has-text("40 coins")',
-      );
+      const coinsDisplay = page.locator('#hud-coins, [data-stat="coins"]').first();
       await expect(coinsDisplay).toBeVisible({ timeout: 5000 });
+      await expect(coinsDisplay).toContainText(String(COINS_BEFORE_RESTART));
 
       // Active quest timer must be visible — copper quest survived restart and is still active
       const questTimer = page.locator(
@@ -261,9 +260,14 @@ test.describe('e2e_backend_restart_preserves_progression', () => {
       expect(timerText, 'active quest timer must display a countdown after backend restart').toMatch(/\d+:\d{2}/);
 
       // Potion must still be in equipment inventory after restart
+      const inventoryBtn = page.locator('#hud-inventory, [data-hud="inventory"], button:has-text("Bag")').first();
+      await inventoryBtn.click();
+      await expect(page.locator('#inventory-panel, [data-testid="inventory-panel"], [data-ui="inventory"]')).toBeVisible({
+        timeout: 5000,
+      });
       const potionSlot = page.locator(
-        '[data-item-id="potion_l0"], [data-inventory-item="potion_l0"], :has-text("Potion")',
-      );
+        '#inventory-panel [data-item-id="potion_l0"], #inventory-panel [data-inventory-item="potion_l0"]',
+      ).first();
       await expect(potionSlot).toBeVisible({ timeout: 5000 });
 
       // Completed quest (hopper) must still be reflected in progression — verify via store or UI

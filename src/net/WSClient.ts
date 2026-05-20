@@ -22,6 +22,7 @@ export interface WSClientOptions {
 const MOVE_INTERVAL_MS = 50;
 const RECONNECT_TIMEOUT_MS = 120_000;
 const MAX_BACKOFF_MS = 30_000;
+const MAX_PENDING_SENDS = 32;
 
 export const RECONNECT_TIMEOUT_MESSAGE = 'Server is temporarily unavailable. Please refresh the page.';
 
@@ -54,6 +55,7 @@ export class WSClient {
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private lastMoveSentAt = -Infinity;
+  private readonly pendingSends: string[] = [];
 
   constructor(options: WSClientOptions) {
     this.wsUrl = options.wsUrl ?? deriveWsUrl(options.playerId);
@@ -83,12 +85,42 @@ export class WSClient {
     }
   }
 
+  isOpen(): boolean {
+    return this.ws !== null && this.ws.readyState === 1;
+  }
+
   send(msg: Record<string, unknown>): void {
-    if (this.ws === null || this.ws.readyState !== 1) return;
+    const payload = JSON.stringify(msg);
+    if (!this.isOpen()) {
+      if (!this.stopped) this.enqueueSend(payload);
+      return;
+    }
+    this.sendPayload(payload);
+  }
+
+  private enqueueSend(payload: string): void {
+    this.pendingSends.push(payload);
+    if (this.pendingSends.length > MAX_PENDING_SENDS) {
+      this.pendingSends.shift();
+    }
+  }
+
+  private sendPayload(payload: string): boolean {
+    if (this.ws === null || this.ws.readyState !== 1) return false;
     try {
-      this.ws.send(JSON.stringify(msg));
+      this.ws.send(payload);
+      return true;
     } catch {
       // justified: send is best-effort; dropped messages on close are normal WebSocket behavior
+      return false;
+    }
+  }
+
+  private flushPendingSends(): void {
+    while (this.pendingSends.length > 0) {
+      const payload = this.pendingSends[0];
+      if (!this.sendPayload(payload)) return;
+      this.pendingSends.shift();
     }
   }
 
@@ -105,6 +137,7 @@ export class WSClient {
         clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
       }
+      this.flushPendingSends();
     };
 
     ws.onmessage = (event) => {
@@ -118,6 +151,7 @@ export class WSClient {
       if (!isRecord(data)) return;
       if (data['type'] === 'error' && data['code'] === 'duplicate_session') {
         this.stopped = true;
+        this.pendingSends.length = 0;
         this.reconnecting = false;
         this.reconnectStartTime = null;
         this.reconnectAttempt = 0;

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const PLAYERS_API = '**/api/v1/players';
 const BOOTSTRAP_API = '**/api/v1/config/bootstrap';
@@ -135,8 +135,45 @@ function parseMsg(raw: string | Buffer): Record<string, unknown> | null {
 }
 
 const RECONNECT_TIMEOUT_MS = 10000;
-const STATE_APPLY_DELAY_MS = 1000;
 const RETRY_WATCH_DELAY_MS = 3000;
+
+async function waitForGameReady(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const store = (window as unknown as Record<string, unknown>)['__gameStore'] as
+        | Record<string, unknown>
+        | undefined;
+      return store?.['ready'] === true && store?.['stateSyncReceived'] === true && store?.['wsOpen'] === true;
+    },
+    undefined,
+    { timeout: 15000 },
+  );
+}
+
+async function waitForQuestStatus(
+  page: Page,
+  questId: string,
+  status: string,
+): Promise<void> {
+  await page.waitForFunction(
+    ([expectedQuestId, expectedStatus]) => {
+      const store = (window as unknown as Record<string, unknown>)['__gameStore'] as
+        | Record<string, unknown>
+        | undefined;
+      const quests = store?.['quests'];
+      return (
+        Array.isArray(quests) &&
+        quests.some((q) => {
+          if (q === null || typeof q !== 'object' || Array.isArray(q)) return false;
+          const record = q as Record<string, unknown>;
+          return record['quest_id'] === expectedQuestId && record['status'] === expectedStatus;
+        })
+      );
+    },
+    [questId, status],
+    { timeout: 15000 },
+  );
+}
 
 test.describe('e2e_quest_turn_in_retry_idempotent', () => {
   test(
@@ -195,7 +232,8 @@ test.describe('e2e_quest_turn_in_retry_idempotent', () => {
       await overlay.locator('button', { hasText: 'Play' }).click();
       await expect(page.locator('#login-overlay')).toHaveCount(0, { timeout: 5000 });
 
-      await page.waitForTimeout(STATE_APPLY_DELAY_MS);
+      await waitForGameReady(page);
+      await waitForQuestStatus(page, 'quest_hopper_blanket', 'active');
       await page.evaluate(() => {
         window.dispatchEvent(
           new CustomEvent('game:quest-turn-in', { detail: { quest_id: 'quest_hopper_blanket' } }),
@@ -321,7 +359,8 @@ test.describe('e2e_quest_turn_in_retry_idempotent', () => {
       await overlay.locator('button', { hasText: 'Play' }).click();
       await expect(page.locator('#login-overlay')).toHaveCount(0, { timeout: 5000 });
 
-      await page.waitForTimeout(STATE_APPLY_DELAY_MS);
+      await waitForGameReady(page);
+      await waitForQuestStatus(page, 'quest_hopper_blanket', 'active');
       await page.evaluate(() => {
         window.dispatchEvent(
           new CustomEvent('game:quest-turn-in', { detail: { quest_id: 'quest_hopper_blanket' } }),
@@ -337,7 +376,7 @@ test.describe('e2e_quest_turn_in_retry_idempotent', () => {
 
       expect(connectionCount, 'client must establish initial + reconnect connections').toBeGreaterThanOrEqual(2);
 
-      await page.waitForTimeout(STATE_APPLY_DELAY_MS);
+      await waitForQuestStatus(page, 'quest_hopper_blanket', 'active');
       // Retry turn-in on reconnect — state_sync showed active so this is a valid retry
       await page.evaluate(() => {
         window.dispatchEvent(
@@ -353,7 +392,7 @@ test.describe('e2e_quest_turn_in_retry_idempotent', () => {
       ]);
 
       // After quest_completed, dispatch another turn-in to verify client stops retrying
-      await page.waitForTimeout(STATE_APPLY_DELAY_MS);
+      await waitForQuestStatus(page, 'quest_hopper_blanket', 'completed');
       await page.evaluate(() => {
         window.dispatchEvent(
           new CustomEvent('game:quest-turn-in', { detail: { quest_id: 'quest_hopper_blanket' } }),

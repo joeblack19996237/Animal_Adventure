@@ -229,12 +229,11 @@ test.describe('e2e_quest_expires_while_disconnected', () => {
       });
 
       // Failed quest cooldown indicator must be shown — state_sync carried cooldown_until
-      const cooldownIndicator = page.locator(
-        '[data-ui="quest-cooldown"], [data-testid="quest-cooldown"], ' +
-        '[data-ui="quest-failed"], [data-testid="quest-failed"], ' +
-        ':has-text("cooldown"), :has-text("Quest failed"), :has-text("failed")',
-      );
+      const cooldownIndicator = page
+        .locator('[data-testid="quest-cooldown"], [data-ui="quest-cooldown"], [data-testid="quest-failed"], [data-ui="quest-failed"]')
+        .first();
       await expect(cooldownIndicator).toBeVisible({ timeout: 8000 });
+      await expect(cooldownIndicator).toContainText(/Quest failed|cooldown|failed/i);
 
       // Verify via page evaluation that the client state carries the correct cooldown_until
       // from the reconnect state_sync. This covers the key spec requirement:

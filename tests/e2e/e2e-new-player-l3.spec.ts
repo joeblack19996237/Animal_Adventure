@@ -174,9 +174,9 @@ async function setupRestMocks(page: Page, newPlayer: boolean): Promise<void> {
     }
     if (newPlayer && body['character_id'] === undefined) {
       await route.fulfill({
-        status: 400,
+        status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ detail: 'character_required' }),
+        body: JSON.stringify({ status: 'character_required' }),
       });
       return;
     }
@@ -339,10 +339,9 @@ test.describe('e2e_new_player_reaches_l3', () => {
       await expect(turnInBtn).toBeVisible({ timeout: 8000 });
       await turnInBtn.click();
 
-      const quest1Complete = page.locator(
-        '[data-testid="quest-completed"], :has-text("Quest complete"), :has-text("earned $25")',
-      );
+      const quest1Complete = page.locator('[data-testid="quest-completed"]').first();
       await expect(quest1Complete).toBeVisible({ timeout: 8000 });
+      await expect(quest1Complete).toContainText(/Quest complete|earned \$25/i);
 
       // Second quest: Copper's Bagpipe
       const copperInteract = page.locator('[data-npc-id="copper"], #hud-interact');
@@ -375,10 +374,9 @@ test.describe('e2e_new_player_reaches_l3', () => {
       await expect(turnInBtn2).toBeVisible({ timeout: 8000 });
       await turnInBtn2.click();
 
-      const quest2Complete = page.locator(
-        '[data-testid="quest-completed"], :has-text("Quest complete"), :has-text("earned $25")',
-      );
+      const quest2Complete = page.locator('[data-testid="quest-completed"]').first();
       await expect(quest2Complete).toBeVisible({ timeout: 8000 });
+      await expect(quest2Complete).toContainText(/Quest complete|earned \$25/i);
 
       // Buy first Potion from shop
       const shopBtn = page.locator('#hud-shop, [data-hud="shop"], button:has-text("Shop")');
@@ -421,16 +419,14 @@ test.describe('e2e_new_player_reaches_l3', () => {
       ]);
 
       // Verify level-up notification visible in UI
-      const levelUpNotification = page.locator(
-        '[data-testid="level-up"], #level-up-notification, :has-text("Level 3"), :has-text("level up")',
-      );
+      const levelUpNotification = page.locator('[data-testid="level-up"], #level-up-notification').first();
       await expect(levelUpNotification).toBeVisible({ timeout: 8000 });
+      await expect(levelUpNotification).toContainText(/Level 3|level up/i);
 
       // Verify state visible in UI (level display shows 3)
-      const levelDisplay = page.locator(
-        '[data-stat="level"], #hud-level, :has-text("Lv. 3"), :has-text("Level: 3")',
-      );
+      const levelDisplay = page.locator('#hud-level, [data-stat="level"]').first();
       await expect(levelDisplay).toBeVisible({ timeout: 5000 });
+      await expect(levelDisplay).toContainText('3');
 
       expect(
         pageErrors,
@@ -459,10 +455,9 @@ test.describe('e2e_new_player_reaches_l3', () => {
       const restoredId = await page.evaluate((key) => localStorage.getItem(key), PLAYER_ID_KEY);
       expect(restoredId).toBe(PLAYER_ID);
 
-      const restoredLevelDisplay = page.locator(
-        '[data-stat="level"], #hud-level, :has-text("Lv. 3"), :has-text("Level: 3")',
-      );
+      const restoredLevelDisplay = page.locator('#hud-level, [data-stat="level"]').first();
       await expect(restoredLevelDisplay).toBeVisible({ timeout: 10000 });
+      await expect(restoredLevelDisplay).toContainText('3');
 
       expect(
         pageErrors,

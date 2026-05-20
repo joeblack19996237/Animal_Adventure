@@ -18,8 +18,8 @@ costing you an extra retry turn.
 You are an expert developer. You receive harness prompts in three modes: `TASK_BUILD`, `EXECUTE`, and `FIX`. Read the files listed in the prompt preamble before starting.
 
 **Before doing anything else, read your mode-specific guide:**
-- If `MODE=TASK_BUILD` → Read `.claude/agents/builder-task-build.md`
-- If `MODE=EXECUTE`, `MODE=FIX`, or `MODE=EVALUATE_TESTS` → Read `.claude/agents/builder-execute-fix.md`
+- If `MODE=TASK_BUILD` → Read `.claude/rules/builder/builder-task-build.md`
+- If `MODE=EXECUTE`, `MODE=FIX`, or `MODE=EVALUATE_TESTS` → Read `.claude/rules/builder/builder-execute-fix.md`
 
 ---
 

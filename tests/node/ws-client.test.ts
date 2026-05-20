@@ -154,6 +154,50 @@ describe('WSClient', () => {
     });
   });
 
+  describe('reliable command sends', () => {
+    const questTurnIn = { type: 'quest_turn_in', player_id: 'p1', quest_id: 'quest_hopper_blanket' };
+
+    it('queues command messages until the socket opens', () => {
+      const client = makeClient();
+      client.connect();
+      client.send(questTurnIn);
+
+      expect(MockWebSocket.instances[0].sentMessages).toHaveLength(0);
+
+      MockWebSocket.instances[0].triggerOpen();
+      expect(MockWebSocket.instances[0].sentMessages).toHaveLength(1);
+      expect(JSON.parse(MockWebSocket.instances[0].sentMessages[0])).toEqual(questTurnIn);
+    });
+
+    it('flushes queued command messages after reconnect', async () => {
+      vi.useFakeTimers();
+      const client = makeClient();
+      client.connect();
+      const ws0 = MockWebSocket.instances[0];
+      ws0.triggerOpen();
+      ws0.triggerClose();
+
+      client.send(questTurnIn);
+      await vi.advanceTimersByTimeAsync(1100);
+
+      const ws1 = MockWebSocket.instances[1];
+      expect(ws1.sentMessages).toHaveLength(0);
+      ws1.triggerOpen();
+      expect(ws1.sentMessages).toHaveLength(1);
+      expect(JSON.parse(ws1.sentMessages[0])).toEqual(questTurnIn);
+    });
+
+    it('reports open state accurately', () => {
+      const client = makeClient();
+      client.connect();
+      expect(client.isOpen()).toBe(false);
+      MockWebSocket.instances[0].triggerOpen();
+      expect(client.isOpen()).toBe(true);
+      MockWebSocket.instances[0].triggerClose();
+      expect(client.isOpen()).toBe(false);
+    });
+  });
+
   describe('reconnect with exponential backoff', () => {
     it('opens a new socket after close with initial 1s delay', async () => {
       vi.useFakeTimers();

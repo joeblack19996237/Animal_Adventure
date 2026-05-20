@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const PLAYERS_API = '**/api/v1/players';
 const BOOTSTRAP_API = '**/api/v1/config/bootstrap';
@@ -113,7 +113,30 @@ function makeStateSync(
 
 const RECONNECT_TIMEOUT_MS = 10000;
 const DISCONNECT_DELAY_MS = 400;
-const STATE_APPLY_DELAY_MS = 1000;
+
+async function waitForQuestStatus(page: Page, questId: string, status: string): Promise<void> {
+  await page.waitForFunction(
+    ([expectedQuestId, expectedStatus]) => {
+      const store = (window as unknown as Record<string, unknown>)['__gameStore'] as
+        | Record<string, unknown>
+        | undefined;
+      const quests = store?.['quests'];
+      return (
+        store?.['ready'] === true &&
+        store?.['stateSyncReceived'] === true &&
+        store?.['wsOpen'] === true &&
+        Array.isArray(quests) &&
+        quests.some((q) => {
+          if (q === null || typeof q !== 'object' || Array.isArray(q)) return false;
+          const record = q as Record<string, unknown>;
+          return record['quest_id'] === expectedQuestId && record['status'] === expectedStatus;
+        })
+      );
+    },
+    [questId, status],
+    { timeout: 15000 },
+  );
+}
 
 test.describe('e2e_quest_reconnect_restores_timers', () => {
   test(
@@ -200,8 +223,8 @@ test.describe('e2e_quest_reconnect_restores_timers', () => {
         'client must establish at least two connections (initial + reconnect)',
       ).toBeGreaterThanOrEqual(2);
 
-      // Allow time for the reconnect state_sync to be applied by the game
-      await page.waitForTimeout(STATE_APPLY_DELAY_MS);
+      // Wait for the reconnect state_sync to be applied by the game
+      await waitForQuestStatus(page, 'quest_hopper_blanket', 'active');
 
       // Game must remain in play state — no re-login after reconnect
       await expect(page.locator('#login-overlay')).toHaveCount(0);

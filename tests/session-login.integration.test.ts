@@ -9,12 +9,28 @@ import { ApiClient } from '../src/net/ApiClient';
 const TEST_PORT = 18090;
 const INITIAL_COINS = 25;
 const BASE_URL = `http://127.0.0.1:${TEST_PORT}`;
+const PYTHON_EXE = resolvePythonExecutable();
 
 let serverProcess: ChildProcess | undefined;
 let testDbDir = '';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function resolvePythonExecutable(): string {
+  const candidates = [
+    process.env['PYTHON'],
+    process.env['PYTHON_EXE'],
+    path.join(os.homedir(), 'AppData', 'Local', 'Python', 'bin', 'python.exe'),
+    path.join(os.homedir(), 'AppData', 'Local', 'Python', 'pythoncore-3.14-64', 'python.exe'),
+    'python',
+  ];
+  return candidates.find((candidate) => {
+    if (candidate === undefined) return false;
+    if (path.isAbsolute(candidate)) return fs.existsSync(candidate);
+    return true;
+  }) ?? 'python';
 }
 
 async function waitForBackend(timeoutMs: number): Promise<void> {
@@ -34,7 +50,7 @@ async function waitForBackend(timeoutMs: number): Promise<void> {
 async function initDb(dbPath: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const proc = spawn(
-      'python',
+      PYTHON_EXE,
       [
         '-c',
         'import sys; from app.db import init_db; from pathlib import Path; init_db(Path(sys.argv[1]))',
@@ -71,7 +87,7 @@ beforeAll(async () => {
   const dbPath = path.join(testDbDir, 'test.sqlite3');
   await initDb(dbPath);
   serverProcess = spawn(
-    'python',
+    PYTHON_EXE,
     [
       '-m',
       'uvicorn',
