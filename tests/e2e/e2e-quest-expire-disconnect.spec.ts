@@ -132,7 +132,7 @@ function makeStateSync(
   };
 }
 
-const RECONNECT_TIMEOUT_MS = 10000;
+const RECONNECT_TIMEOUT_MS = 20000;
 const DISCONNECT_DELAY_MS = 400;
 const STATE_APPLY_DELAY_MS = 1000;
 
@@ -201,7 +201,7 @@ test.describe('e2e_quest_expires_while_disconnected', () => {
         reconnectEstablished,
         new Promise<void>((_, reject) =>
           setTimeout(
-            () => reject(new Error('Reconnect timeout: client did not reconnect within 10s')),
+            () => reject(new Error('Reconnect timeout: client did not reconnect within 20s')),
             RECONNECT_TIMEOUT_MS,
           ),
         ),

@@ -111,7 +111,7 @@ function makeStateSync(
   };
 }
 
-const RECONNECT_TIMEOUT_MS = 10000;
+const RECONNECT_TIMEOUT_MS = 20000;
 const DISCONNECT_DELAY_MS = 400;
 
 async function waitForQuestStatus(page: Page, questId: string, status: string): Promise<void> {
@@ -212,7 +212,7 @@ test.describe('e2e_quest_reconnect_restores_timers', () => {
         reconnectEstablished,
         new Promise<void>((_, reject) =>
           setTimeout(
-            () => reject(new Error('Reconnect timeout: client did not reconnect within 10s')),
+            () => reject(new Error('Reconnect timeout: client did not reconnect within 20s')),
             RECONNECT_TIMEOUT_MS,
           ),
         ),

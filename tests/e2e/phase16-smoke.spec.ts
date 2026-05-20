@@ -5,11 +5,16 @@ const PLAYERS_API = '**/api/v1/players';
 const BOOTSTRAP_API = '**/api/v1/config/bootstrap';
 const WS_GLOB = '**/ws/**';
 const PLAYER_ID_KEY = 'animal_adventure_player_id';
+const NGINX_BASE_URL = 'http://localhost:8080';
 
 const PLAYER_ID = 'p16-smoke-player';
 const PLAYER_NAME = 'Phase16SmokePlayer';
 const FUTURE_EXPIRES = '2030-01-01T00:00:00Z';
 const SERVER_NOW = '2026-05-20T00:00:00Z';
+
+function isNginxRunner(baseURL: string | undefined): boolean {
+  return baseURL?.replace(/\/$/, '') === NGINX_BASE_URL;
+}
 
 const MOCK_PLAYER = {
   player_id: PLAYER_ID,
@@ -226,6 +231,8 @@ async function expectCanvasNonblank(page: Page): Promise<void> {
 }
 
 test.describe('@phase16-smoke', () => {
+  test.skip(({ baseURL }) => !isNginxRunner(baseURL), 'nginx smoke tests require the nginx Playwright config');
+
   test('nginx serves frontend, assets, and backend health routes', async ({ request }) => {
     await expectOk(request, '/');
     await expectBuiltFrontendAssetOk(request);
@@ -481,6 +488,8 @@ test.describe('@phase16-smoke', () => {
 });
 
 test.describe('soak_30_min', () => {
+  test.skip(({ baseURL }) => !isNginxRunner(baseURL), 'nginx soak requires the nginx Playwright config');
+
   test('keeps the nginx-served game alive during the opt-in soak window', async ({ page }) => {
     test.skip(process.env['HARNESS_SOAK'] !== '1', '30-minute soak is opt-in');
     test.setTimeout(31 * 60 * 1000);

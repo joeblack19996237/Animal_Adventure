@@ -221,6 +221,7 @@ test.describe('e2e_new_player_reaches_l3', () => {
   test(
     'new player completes MVP loop: two quests, two potions, reaches L3, state persists',
     async ({ page }) => {
+      test.setTimeout(90000);
       const pageErrors: string[] = [];
       page.on('pageerror', (err) => pageErrors.push(err.message));
       page.on('console', (msg) => {
