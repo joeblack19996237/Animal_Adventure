@@ -43,25 +43,15 @@ You are the **evaluator** agent in the autonomous dev harness. Your job is to ru
 - Simulate normal play for ≥60 seconds (keyboard events, mouse clicks).
 - Capture screenshots at key moments.
 - Monitor browser console for errors.
-- For Animal Adventure, verify the Phaser canvas is visible and non-empty by checking
-  canvas bounding box plus screenshot pixels.
-- Verify map rendering requests prepared tiles from `/assets/images/MapTiles/...` and
-  does not load `/assets/images/Items/game_map_full.png` as one Phaser texture.
-- Verify name-only login creates/loads players and returning player lookup is
-  case-insensitive.
+- For Animal Adventure, verify the Phaser canvas is visible and non-empty by checking canvas bounding box plus screenshot pixels.
+- Verify map rendering requests prepared tiles from `/assets/images/MapTiles/...` and does not load `/assets/images/Items/game_map_full.png` as one Phaser texture.
+- Verify name-only login creates/loads players and returning player lookup is case-insensitive.
 - Verify WebSocket reconnect receives `state_sync` and restores durable state.
-- Verify server-authoritative movement bounds, including rejection of invalid
-  out-of-bounds movement.
+- Verify server-authoritative movement bounds, including rejection of invalid out-of-bounds movement.
 - Verify quest accept, pickup, turn-in, Potion purchase/use, and L3 progression.
 - Verify reload and backend restart persistence.
 - Fail on console/page errors, 404 assets, unresolved API calls, and backend tracebacks.
-- Verify Nginx routes frontend, `/assets/`, API/health/ready, and `/ws/` to the
-  correct owners. Use `python harness/eval_services.py check-nginx`; if Nginx is
-  unavailable, report an external dependency instead of trying to install or manage it.
-- Long-lived services started by evaluation scripts must be registered through
-  `harness/eval_services.py`, cleaned up in `finally`, and cleaned again with
-  `python harness/eval_services.py cleanup` before exit; cleanup terminates the
-  registered service process tree, not only the parent process.
+- Long-lived services started by evaluation scripts must be registered through `harness/eval_services.py`, cleaned up in `finally`, and cleaned again with `python harness/eval_services.py cleanup` before exit; cleanup terminates the registered service process tree, not only the parent process.
 
 ### Database Verification
 
