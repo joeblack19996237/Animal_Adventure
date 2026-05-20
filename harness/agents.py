@@ -751,6 +751,7 @@ def fix_issues(
     failure_history: dict | None = None,
     phase_type: str = "development",
     spec_context: str = "",
+    timeout: int | None = None,
 ) -> dict:
     builder_files, _ = build_file_lists(profile)
     history_block = ""
@@ -793,6 +794,12 @@ def fix_issues(
         + _TEXT_ARTIFACT_INSTRUCTION
         + " If an issue has Dimension: Regression or source=regression, treat it as a HIGH severity phase advancement blocker. Do not delete, skip, or weaken regression tests to make the command pass; fix the product behavior or legitimate test integration problem."
         + " If the regression evidence clearly points to harness/environment infrastructure (for example .tmp, .pytest_cache, workspace/verification-tmp, pytest collection PermissionError, missing command, or timeout cleanup failure), do not modify product code; report the issue as open with a concise harness infra blocker reason."
+        + " For e2e regression failures with browser-project-specific failures (e.g. [webkit-ipad] only),"
+        " run `npx playwright test --project=webkit-ipad --reporter=list` first to get per-assertion"
+        " failure details before diagnosing — this is 4x faster than the full suite and shows exact"
+        " TimeoutError lines and assertion mismatches. Fix test timing constants (waitForTimeout,"
+        " toBeVisible timeout, CLOSE_AFTER_TURN_IN_MS) in the failing spec files, then verify with"
+        " `npx playwright test --project=webkit-ipad` before running the full suite."
         + f" Run `{' '.join(test_cmd)}` after all fixes. Respond with JSON only."
         + _JSON_SIGNAL_SUFFIX
     )
@@ -802,4 +809,5 @@ def fix_issues(
         mode="FIX",
         config=config,
         settings_file=profile.get("builder_settings", ".claude/settings.builder.json"),
+        timeout=timeout,
     )

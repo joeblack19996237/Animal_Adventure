@@ -7,9 +7,11 @@ import pytest
 import regression as regression_mod
 import state as state_mod
 from regression import (
+    REGRESSION_BROWSER_COMPAT_FAILURE,
     REGRESSION_INFRA_FAILURE,
     REGRESSION_PRODUCT_FAILURE,
     REGRESSION_TIMEOUT,
+    classify_regression_failure,
     collect_regression_commands,
     run_phase_regression_gate,
 )
@@ -248,3 +250,44 @@ def test_run_phase_regression_gate_product_failure_keeps_high_issue_flow(
     assert phase["review"]["status"] == "fixing"
     assert issue["severity"] == "HIGH"
     assert issue["failure_kind"] == REGRESSION_PRODUCT_FAILURE
+
+
+def test_classify_detects_all_webkit_ipad_failures_as_browser_compat():
+    failure = {
+        "returncode": 1,
+        "stdout_tail": (
+            "  [webkit-ipad] › tests\\e2e\\e2e-quest-reconnect.spec.ts:119:7 › "
+            "e2e_quest_reconnect_restores_timers › reconnect restores timer\n"
+            "  [webkit-ipad] › tests\\e2e\\phase14-smoke.spec.ts:165:7 › "
+            "@phase14-smoke › new player can complete the short MVP L3 loop\n"
+        ),
+        "stderr_tail": "",
+    }
+    result = classify_regression_failure(failure)
+    assert result["kind"] == REGRESSION_BROWSER_COMPAT_FAILURE
+
+
+def test_classify_does_not_misclassify_chromium_failure():
+    failure = {
+        "returncode": 1,
+        "stdout_tail": (
+            "  [chromium] › tests\\e2e\\e2e-quest-reconnect.spec.ts:119:7 › "
+            "e2e_quest_reconnect_restores_timers › reconnect restores timer\n"
+        ),
+        "stderr_tail": "",
+    }
+    result = classify_regression_failure(failure)
+    assert result["kind"] == REGRESSION_PRODUCT_FAILURE
+
+
+def test_classify_mixed_browser_failures_fall_through_to_product():
+    failure = {
+        "returncode": 1,
+        "stdout_tail": (
+            "  [webkit-ipad] › tests\\e2e\\foo.spec.ts:1:1 › foo\n"
+            "  [chromium] › tests\\e2e\\bar.spec.ts:2:1 › bar\n"
+        ),
+        "stderr_tail": "",
+    }
+    result = classify_regression_failure(failure)
+    assert result["kind"] == REGRESSION_PRODUCT_FAILURE

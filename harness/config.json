@@ -7,6 +7,7 @@
     "EXECUTE": 600,
     "REVIEW": 600,
     "FIX": 600,
+    "FIX_REGRESSION": 1200,
     "CLEANUP": 300,
     "EVALUATE_TESTS": 300,
     "EVALUATE": 600

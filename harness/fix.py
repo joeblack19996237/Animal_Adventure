@@ -187,10 +187,7 @@ def _task_retry_exhausted_reason(task: dict, config: dict) -> str:
     verify_fails = task.get("verify_fails", 0)
     attempts = task.get("attempts", 0)
     if failures >= max_attempts and attempts < max_attempts:
-        return (
-            f"task recorded {failures} failures "
-            f"(max_attempts={max_attempts})"
-        )
+        return f"task recorded {failures} failures (max_attempts={max_attempts})"
     if verify_fails >= max_attempts and attempts < max_attempts:
         return (
             f"task recorded {verify_fails} consecutive verify failures "
@@ -199,7 +196,9 @@ def _task_retry_exhausted_reason(task: dict, config: dict) -> str:
     return "failed too many times"
 
 
-def run_fix_cycle(harness: Harness, state: dict, phase_id: int) -> None:
+def run_fix_cycle(
+    harness: Harness, state: dict, phase_id: int, timeout: int | None = None
+) -> None:
     _reconcile_review_report(state, phase_id)
     _normalize_review_report_ids(state, phase_id)
     profile = harness.profile_for(phase_id)
@@ -239,6 +238,7 @@ def run_fix_cycle(harness: Harness, state: dict, phase_id: int) -> None:
                 failure_history=failure_history or None,
                 phase_type=harness.phase_type_for(phase_id),
                 spec_context=_phase_spec_context(state, phase_id),
+                timeout=timeout,
             )
             fixes = result["signal"].get("fixes", [])
             log_usage(
@@ -522,8 +522,7 @@ def _block_regression_infra_issues(
         if issue.get("failure_kind") not in REGRESSION_INFRA_FAILURE_KINDS:
             continue
         reason = (
-            "regression issue is a harness/environment blocker, not a product "
-            "FIX task"
+            "regression issue is a harness/environment blocker, not a product FIX task"
         )
         issue["status"] = "halted"
         last_error = issue.setdefault("last_error", [])

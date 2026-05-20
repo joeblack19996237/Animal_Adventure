@@ -594,7 +594,19 @@ def handle_reviewing(harness: Harness, state: dict, phase_id: int, profile: dict
 
 
 def handle_fixing(harness: Harness, state: dict, phase_id: int):
-    run_fix_cycle(harness, state, phase_id)
+    phase = find_phase(state, phase_id)
+    # Use a longer timeout when FIX is triggered by regression failures — the agent
+    # must run the full Playwright suite (~150s/run) which exhausts the default 600s.
+    is_regression_fix = phase.get("regression", {}).get("status") in {
+        "failed",
+        "blocked",
+    }
+    timeout: int | None = None
+    if is_regression_fix:
+        timeout = harness.config.get("subprocess_timeout", {}).get(
+            "FIX_REGRESSION", 1200
+        )
+    run_fix_cycle(harness, state, phase_id, timeout=timeout)
     return HarnessState.REGRESSION_TESTING
 
 

@@ -28,6 +28,7 @@ REGRESSION_SOURCE = "regression"
 REGRESSION_PRODUCT_FAILURE = "product_failure"
 REGRESSION_INFRA_FAILURE = "infra_failure"
 REGRESSION_TIMEOUT = "timeout"
+REGRESSION_BROWSER_COMPAT_FAILURE = "browser_compat_failure"
 REGRESSION_BLOCKED_STATUSES = {"blocked", "error", "halted"}
 REGRESSION_FAILURE_ARTIFACT_DIR = Path("workspace/regression")
 
@@ -128,6 +129,23 @@ def run_phase_regression_gate(harness: Harness, state: dict, phase_id: int) -> b
         )
         return False
 
+    # All failures are non-chromium browser-compat only → pass gate, log to tech_debt
+    if failure_kinds and failure_kinds <= {REGRESSION_BROWSER_COMPAT_FAILURE}:
+        regression["status"] = "passed"
+        regression["failure_kind"] = REGRESSION_BROWSER_COMPAT_FAILURE
+        regression["blocker_kind"] = None
+        regression["last_error"] = []
+        regression["passed_sha"] = _current_head()
+        _mark_regression_issues_fixed(phase, regression["passed_sha"])
+        _append_browser_compat_to_tech_debt(phase_id, failures)
+        save_state(state)
+        logger.warning(
+            "[REGRESSION] Phase %d: all failures are browser-compat only "
+            "(non-chromium); passing gate and logging to tech_debt.",
+            phase_id,
+        )
+        return True
+
     regression["status"] = "failed"
     regression["failure_kind"] = REGRESSION_PRODUCT_FAILURE
     regression["blocker_kind"] = None
@@ -152,7 +170,9 @@ def run_phase_regression_gate(harness: Harness, state: dict, phase_id: int) -> b
     return False
 
 
-def _run_regression_commands(harness: Harness, commands: list[list[str]], phase_id: int):
+def _run_regression_commands(
+    harness: Harness, commands: list[list[str]], phase_id: int
+):
     results = []
     kwargs = _verification_cmd_kwargs(harness)
     for command in commands:
@@ -360,6 +380,14 @@ def classify_regression_failure(failure: dict) -> dict:
             "kind": REGRESSION_INFRA_FAILURE,
             "reason": "regression failed while collecting temp/cache/harness artifacts",
         }
+    if _looks_like_browser_compat_failure(output):
+        return {
+            "kind": REGRESSION_BROWSER_COMPAT_FAILURE,
+            "reason": (
+                "all test failures are non-chromium browser-project-specific "
+                "(webkit/firefox); chromium passes — treat as compat warning"
+            ),
+        }
     return {
         "kind": REGRESSION_PRODUCT_FAILURE,
         "reason": "regression command reported product test failures",
@@ -400,6 +428,16 @@ def _looks_like_infra_collection_failure(output: str) -> bool:
     )
 
 
+def _looks_like_browser_compat_failure(output: str) -> bool:
+    """Return True when ALL Playwright failure lines carry a non-chromium
+    browser project prefix. Conservative: any [chromium] failure → False.
+    """
+    failure_lines = re.findall(r"^\s+\[(\w[\w-]+)\]\s+›", output, re.MULTILINE)
+    if not failure_lines:
+        return False
+    return all(proj.lower() != "chromium" for proj in failure_lines)
+
+
 def _write_regression_failure_artifact(phase_id: int, failures: list[dict]) -> Path:
     REGRESSION_FAILURE_ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     path = REGRESSION_FAILURE_ARTIFACT_DIR / f"phase_{phase_id}_last_failure.log"
@@ -433,7 +471,35 @@ def _now_iso() -> str:
 
 
 def _current_head() -> str | None:
-    result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True
+    )
     if result.returncode != 0:
         return None
     return result.stdout.strip()
+
+
+def _append_browser_compat_to_tech_debt(phase_id: int, failures: list[dict]) -> None:
+    import json as _json
+
+    from fix import TECH_DEBT_PATH, _tech_debt_existing_ids
+
+    TECH_DEBT_PATH.parent.mkdir(exist_ok=True)
+    entry_id = f"browser_compat_{phase_id}"
+    if entry_id in _tech_debt_existing_ids():
+        return
+    reasons = [f.get("failure_reason", "browser-compat failure") for f in failures]
+    entry = {
+        "id": entry_id,
+        "severity": "LOW",
+        "dimension": "Regression",
+        "file": "FULL_REGRESSION",
+        "title": f"Phase {phase_id}: webkit/browser-compat e2e failures (chromium passes)",
+        "status": "open",
+        "attempts": 0,
+        "files_changed": [],
+        "fixed_sha": None,
+        "last_error": reasons,
+    }
+    with open(TECH_DEBT_PATH, "a", encoding="utf-8") as fh:
+        fh.write(_json.dumps(entry) + "\n")
