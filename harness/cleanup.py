@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 import agents
 from calibrate import log_usage
-from calibrate import get_cleanup_fix_deferred_issues
 from fix import _is_excluded_path
 from spec_context import build_phase_spec_context
 from state import (
@@ -53,12 +52,13 @@ def run_cleanup(harness: Harness, state: dict) -> None:
     _purge_excluded_from_tech_debt(exclude_paths)
     _rewrite_tech_debt_from_state(state, exclude_paths)
 
-    if not get_cleanup_fix_deferred_issues(harness.config):
-        _handle_finish_result(state, _finish(_collect_test_cmds(harness, state)))
-        return
+    verification_timeout = int(harness.config.get("verification_timeout", 900))
 
     if not _fixable_deferred(state, exclude_paths):
-        _handle_finish_result(state, _finish(_collect_test_cmds(harness, state)))
+        _handle_finish_result(
+            state,
+            _finish(_collect_test_cmds(harness, state), timeout=verification_timeout),
+        )
         return
 
     failure_history: dict = {}
@@ -194,7 +194,10 @@ def run_cleanup(harness: Harness, state: dict) -> None:
         if had_verification_error:
             break
 
-    _handle_finish_result(state, _finish(_collect_test_cmds(harness, state)))
+    _handle_finish_result(
+        state,
+        _finish(_collect_test_cmds(harness, state), timeout=verification_timeout),
+    )
 
 
 def _handle_finish_result(state: dict, failures: list[dict] | None) -> None:
@@ -220,11 +223,15 @@ def _record_cleanup_subprocess_error(
     sys.exit(1)
 
 
-def _finish(test_cmds: list[list] | None = None) -> list[dict]:
+def _finish(
+    test_cmds: list[list] | None = None, timeout: int | None = None
+) -> list[dict]:
     print("\n[HARNESS] All phases complete.")
     failures: list[dict] = []
     for cmd in test_cmds or [["pytest"]]:
-        run_cmd, result = run_command(cmd, capture_output=True, text=True)
+        run_cmd, result = run_command(
+            cmd, capture_output=True, text=True, timeout=timeout
+        )
         print(result.stdout[-1000:] if result.stdout else "(no output)")
         if result.returncode != 0:
             print(f"[WARN] {run_cmd[0]} reported failures — review manually.")

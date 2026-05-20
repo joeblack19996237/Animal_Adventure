@@ -321,6 +321,20 @@ def test_finish_returns_failures_for_nonzero_command(monkeypatch):
     ]
 
 
+def test_finish_passes_timeout_to_run_command(monkeypatch):
+    captured = {}
+
+    def mock_run_command(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["timeout"] = kwargs.get("timeout")
+        return cmd, subprocess.CompletedProcess(cmd, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(cleanup_mod, "run_command", mock_run_command)
+
+    assert _finish([["pytest"]], timeout=900) == []
+    assert captured == {"cmd": ["pytest"], "timeout": 900}
+
+
 def _cleanup_state_with_deferred_issue():
     return {
         "phases": [
@@ -401,34 +415,45 @@ def test_cleanup_accepts_fixed_issue_only_when_tests_pass(
     assert issue["fixed_sha"] == "newsha"
 
 
-def test_cleanup_record_only_skips_fix_issues_when_config_false(
+def test_cleanup_fixes_deferred_issue_even_when_legacy_config_false(
     sample_profile, sample_config, monkeypatch
 ):
     state = _cleanup_state_with_deferred_issue()
     save_state(state)
     sample_config["cleanup_fix_deferred_issues"] = False
-    fix_mock = MagicMock()
+    fix_mock = MagicMock(
+        return_value={
+            "signal": {
+                "fixes": [
+                    {"id": "1.1", "status": "fixed", "files_changed": ["src/app.py"]}
+                ]
+            },
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+    )
     monkeypatch.setattr(cleanup_mod.agents, "fix_issues", fix_mock)
+    monkeypatch.setattr(cleanup_mod, "log_usage", lambda **kw: None)
+    monkeypatch.setattr(subprocess, "run", _cleanup_verify_run())
     monkeypatch.setattr(cleanup_mod, "_finish", lambda *a, **kw: [])
 
     run_cleanup(_cleanup_harness(sample_profile, sample_config), state)
 
-    fix_mock.assert_not_called()
-    assert "1.1" in cleanup_mod.TECH_DEBT_PATH.read_text(encoding="utf-8")
+    fix_mock.assert_called_once()
+    assert state["phases"][0]["review"]["issues"][0]["status"] == "fixed"
 
 
-def test_cleanup_record_only_still_runs_final_verification(
+def test_cleanup_without_deferred_issues_still_runs_final_verification_with_timeout(
     sample_profile, sample_config, monkeypatch
 ):
     state = _cleanup_state_with_deferred_issue()
+    state["phases"][0]["review"]["issues"][0]["status"] = "fixed"
     save_state(state)
-    sample_config["cleanup_fix_deferred_issues"] = False
     finish_mock = MagicMock(return_value=[])
     monkeypatch.setattr(cleanup_mod, "_finish", finish_mock)
 
     run_cleanup(_cleanup_harness(sample_profile, sample_config), state)
 
-    finish_mock.assert_called_once()
+    finish_mock.assert_called_once_with([sample_profile["test_cmd"]], timeout=900)
 
 
 def test_cleanup_passes_phase_spec_context(sample_profile, sample_config, monkeypatch):

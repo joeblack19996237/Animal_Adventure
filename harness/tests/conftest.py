@@ -14,7 +14,6 @@ CONFIG = {
     },
     "max_attempts": 3,
     "verify_fail_escalation": 2,
-    "cleanup_fix_deferred_issues": True,
     "timeout_policy": {
         "REVIEW": {
             "min": 480,

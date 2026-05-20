@@ -14,7 +14,7 @@
   },
   "max_attempts": 3,
   "verify_fail_escalation": 2,
-  "verification_timeout": 600,
+  "verification_timeout": 900,
   "regression_gate": {
     "infra_failure_paths": [
       ".tmp",
@@ -28,7 +28,6 @@
   "max_evaluate_iterations": 3,
   "evaluate_early_stop_on_full_score": false,
   "evaluation_min_score_pct": 0.9,
-  "cleanup_fix_deferred_issues": false,
   "game_quick_smoke_phase_ids": [5, 8, 11, 14, 16],
   "claude_session_pacing": {
     "enabled": true,

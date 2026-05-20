@@ -1360,7 +1360,7 @@ def test_run_cleanup_all_fixed(sample_config, monkeypatch, tmp_workspace):
 
     finish_called = [False]
     monkeypatch.setattr(
-        cleanup_mod, "_finish", lambda *_: finish_called.__setitem__(0, True)
+        cleanup_mod, "_finish", lambda *_, **kw: finish_called.__setitem__(0, True)
     )
 
     from cleanup import run_cleanup

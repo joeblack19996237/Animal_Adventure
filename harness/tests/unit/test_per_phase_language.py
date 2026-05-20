@@ -201,7 +201,7 @@ def test_cleanup_groups_issues_by_phase(tmp_workspace, sample_config, monkeypatc
         lambda *a, **kw: MagicMock(stdout="sha\n", returncode=0, stderr=""),
     )
     monkeypatch.setattr(agents, "fix_issues", mock_fix_issues)
-    monkeypatch.setattr(cleanup_mod, "_finish", lambda *_: None)
+    monkeypatch.setattr(cleanup_mod, "_finish", lambda *_, **kw: None)
 
     def mock_verify_fix(*args, **kwargs):
         state_arg, fixes_arg, phase_id_arg = args[1], args[2], args[3]

@@ -7,7 +7,6 @@ DEFAULT_LANGUAGE = "python"
 DEFAULT_APP_TYPE = "cli"
 DEFAULT_SPEC_PATH = ""
 DEFAULT_EVALUATION_MIN_SCORE_PCT = 0.0
-DEFAULT_CLEANUP_FIX_DEFERRED_ISSUES = True
 DEFAULT_CLAUDE_SESSION_PACING = {
     "enabled": True,
     "min_seconds_between_calls": 60,
@@ -47,7 +46,6 @@ def validate_config(config: dict) -> None:
     get_default_app_type(config)
     get_default_spec_path(config)
     get_evaluation_min_score_pct(config)
-    get_cleanup_fix_deferred_issues(config)
     get_game_quick_smoke_phase_ids(config)
     get_claude_session_pacing(config)
     get_task_planning_limits(config)
@@ -99,15 +97,6 @@ def get_evaluation_min_score_pct(config: dict) -> float:
     )
     if value < 0 or value > 1:
         raise ValueError("evaluation_min_score_pct must be between 0 and 1")
-    return value
-
-
-def get_cleanup_fix_deferred_issues(config: dict) -> bool:
-    value = config.get(
-        "cleanup_fix_deferred_issues", DEFAULT_CLEANUP_FIX_DEFERRED_ISSUES
-    )
-    if not isinstance(value, bool):
-        raise ValueError("cleanup_fix_deferred_issues must be a boolean")
     return value
 
 

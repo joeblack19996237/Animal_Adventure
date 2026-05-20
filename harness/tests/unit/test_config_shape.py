@@ -5,7 +5,6 @@ import pytest
 
 from calibrate import (
     get_claude_session_pacing,
-    get_cleanup_fix_deferred_issues,
     get_evaluation_min_score_pct,
     get_evaluate_early_stop_on_full_score,
     get_external_dependency_config,
@@ -32,8 +31,9 @@ def test_config_has_animal_adventure_defaults():
     assert config["subprocess_timeout"]["EVALUATE"] == 2400
     assert config["subprocess_timeout"]["EVALUATE_TESTS"] == 900
     assert config["subprocess_timeout"]["FIX"] == 900
+    assert config["verification_timeout"] == 900
     assert get_evaluation_min_score_pct(config) == 0.9
-    assert get_cleanup_fix_deferred_issues(config) is False
+    assert "cleanup_fix_deferred_issues" not in config
     assert get_game_quick_smoke_phase_ids(config) == [5, 8, 11, 14, 16]
 
 
@@ -77,13 +77,6 @@ def test_config_rejects_invalid_evaluation_min_score_pct(sample_config):
     config = {**sample_config, "evaluation_min_score_pct": 1.5}
     with pytest.raises(ValueError, match="evaluation_min_score_pct"):
         validate_config(config)
-
-
-def test_config_accepts_cleanup_fix_deferred_boolean(sample_config):
-    for value in (True, False):
-        config = {**sample_config, "cleanup_fix_deferred_issues": value}
-        validate_config(config)
-        assert get_cleanup_fix_deferred_issues(config) is value
 
 
 def test_config_accepts_game_quick_smoke_phase_ids(sample_config):
