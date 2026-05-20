@@ -15,3 +15,5 @@ debug.log
 .coverage
 Animal_Adventure_design_v2.md
 push-manifest.txt
+.claude/scheduled_tasks.lock
+.claude/settings.local.json

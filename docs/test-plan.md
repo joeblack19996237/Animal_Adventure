@@ -156,3 +156,22 @@ usable across laptop, tablet, and small browser viewports.
 - `e2e_no_console_or_backend_errors`: no critical browser console/page errors or backend tracebacks.
 - `@phase16-smoke`: Nginx-served browser acceptance covers assets, API/ws routing, login, reconnect, duplicate session, and L3; webkit-ipad project also runs touch-joystick and WebKit reconnect smoke tests.
 - `soak_30_min`: 30-minute smoke runs only when `HARNESS_SOAK=1`.
+
+## Phase 16 — Final Browser Acceptance [e2e]
+**Ref:** `docs/requirements.md`, `docs/architecture.md`, `docs/data-model.md`, `docs/websocket-protocol.md`, `docs/workflows.md`, `docs/logging-and-ops.md`, `docs/test-plan.md`
+
+1. Run full pytest suite.
+2. Run full Vitest suite.
+3. Run Playwright E2E through Nginx URL.
+4. Verify Nginx serves frontend and assets.
+5. Verify FastAPI does not serve static assets.
+6. Verify browser-only access.
+7. Verify name-only player creation and case-insensitive return login.
+8. Verify new player can reach L3.
+9. Verify reload restores state.
+10. Verify WebSocket reconnect restores progress.
+11. Verify a second browser using the same player replaces the old WebSocket connection via `duplicate_session`.
+12. Verify backend process restart restores SQLite state.
+13. Verify logs rotate and cleanup dry-run works.
+14. Verify no critical console errors or backend tracebacks during 30-minute smoke test.
+15. Write `@phase16-smoke` Playwright quick smoke for Nginx routing, assets, login, reconnect, duplicate session, and L3. Run the 30-minute soak only when `HARNESS_SOAK=1`.

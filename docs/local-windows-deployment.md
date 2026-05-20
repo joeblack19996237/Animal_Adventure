@@ -1,6 +1,16 @@
 # Animal Adventure — Local Windows 10 Deployment Guide
 
-This guide covers deploying the Animal Adventure L3 MVP locally on Windows 10 using Nginx on port 8080.
+This guide covers deploying the Animal Adventure L3 MVP locally on this Windows workstation using Nginx on port 8080.
+
+Verified local paths and commands in this workspace:
+
+- Project root: `D:\Animal_Adventure`
+- Nginx executable: `D:\nginx\nginx.exe`
+- Node executable: `C:\Program Files\nodejs\node.exe`
+- npm command for PowerShell: `C:\Program Files\nodejs\npm.CMD`
+- Python executable: `C:\Users\OEM\AppData\Local\Python\bin\python.exe`
+- Browser entrypoint: `http://localhost:8080/`
+- FastAPI bind address: `127.0.0.1:8000`
 
 ## Prerequisites
 
@@ -9,6 +19,9 @@ This guide covers deploying the Animal Adventure L3 MVP locally on Windows 10 us
 - Node.js 18+ and npm
 - Git (for cloning)
 - PowerShell 5.1+
+- Nginx installed at `D:\nginx`
+
+On this machine, bare `python` resolves to the inaccessible WindowsApps shim and PowerShell blocks `npm.ps1`. Use the explicit Python path and `npm.CMD` commands shown below.
 
 ## Architecture Overview
 
@@ -32,10 +45,10 @@ FastAPI listens only on `127.0.0.1:8000` and is not exposed directly to the brow
 1. Download the **stable** Windows zip from the official Nginx download page:
    `https://nginx.org/en/download.html`
 
-2. Extract to a short path **without spaces**:
+2. Extract to a short path **without spaces**. On this machine Nginx is installed at:
 
    ```text
-   C:\nginx
+   D:\nginx
    ```
 
    Avoid paths like `C:\Program Files\nginx` — spaces can break Nginx config on Windows.
@@ -43,22 +56,22 @@ FastAPI listens only on `127.0.0.1:8000` and is not exposed directly to the brow
 3. Verify the install:
 
    ```powershell
-   C:\nginx\nginx.exe -v
+   D:\nginx\nginx.exe -v
    ```
 
 ## Step 2 — Install Python and Node Dependencies
 
 ```powershell
 cd D:\Animal_Adventure
-pip install -r requirements.txt
-npm install
+& 'C:\Users\OEM\AppData\Local\Python\bin\python.exe' -m pip install -r requirements.txt
+& 'C:\Program Files\nodejs\npm.CMD' install
 ```
 
 ## Step 3 — Build the Frontend
 
 ```powershell
 cd D:\Animal_Adventure
-npm run build
+& 'C:\Program Files\nodejs\npm.CMD' run build
 ```
 
 The built files land in `dist/`. Nginx serves this directory at `/`.
@@ -81,6 +94,8 @@ If your project root differs from `D:\Animal_Adventure`, pass the actual path:
 ```
 
 The generated config file: `deploy/nginx/animal-adventure.nginx.conf`
+
+Important: this generated file is a `server { ... }` block. It is meant to be included inside a top-level Nginx `http {}` block. Do not pass it directly to `nginx.exe -c`; Nginx will reject a bare `server` block as a top-level config.
 
 ## Step 5 — Nginx Config Reference
 
@@ -127,26 +142,61 @@ server {
 Port `8080` is the default MVP port. Do not change this to port `80` without reading the risks
 section below.
 
-## Step 6 — Validate and Start Nginx
+## Step 6 — Create a Local Nginx Wrapper Config
 
-```powershell
-cd C:\nginx
-
-# Test the generated config
-.\nginx.exe -t -c D:\Animal_Adventure\deploy\nginx\animal-adventure.nginx.conf
-
-# Start Nginx with the project config
-.\nginx.exe -c D:\Animal_Adventure\deploy\nginx\animal-adventure.nginx.conf
-```
-
-## Step 7 — Start FastAPI
+The project config is a `server` block, so this machine uses a small wrapper config that includes it inside `http {}`. The wrapper also writes Nginx logs, pid, and temp files under `D:\Animal_Adventure\.tmp` because this user cannot write to `D:\nginx\logs`.
 
 ```powershell
 cd D:\Animal_Adventure
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+New-Item -ItemType Directory -Force .tmp\logs, .tmp\temp | Out-Null
+
+@'
+error_log D:/Animal_Adventure/.tmp/nginx-error.log;
+pid D:/Animal_Adventure/.tmp/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include D:/nginx/conf/mime.types;
+    default_type application/octet-stream;
+    access_log D:/Animal_Adventure/.tmp/nginx-access.log;
+
+    client_body_temp_path D:/Animal_Adventure/.tmp/temp/client_body_temp;
+    proxy_temp_path D:/Animal_Adventure/.tmp/temp/proxy_temp;
+    fastcgi_temp_path D:/Animal_Adventure/.tmp/temp/fastcgi_temp;
+    uwsgi_temp_path D:/Animal_Adventure/.tmp/temp/uwsgi_temp;
+    scgi_temp_path D:/Animal_Adventure/.tmp/temp/scgi_temp;
+
+    sendfile on;
+    keepalive_timeout 65;
+
+    include D:/Animal_Adventure/deploy/nginx/animal-adventure.nginx.conf;
+}
+'@ | Set-Content -Path .tmp\nginx-animal-adventure-wrapper.conf -Encoding ascii
 ```
 
-## Step 8 — Verify Deployment
+## Step 7 — Validate and Start Nginx
+
+```powershell
+cd D:\Animal_Adventure
+
+# Test the wrapper config
+& 'D:\nginx\nginx.exe' -t -p 'D:\Animal_Adventure\.tmp' -c 'D:\Animal_Adventure\.tmp\nginx-animal-adventure-wrapper.conf'
+
+# Start Nginx with the wrapper config
+& 'D:\nginx\nginx.exe' -p 'D:\Animal_Adventure\.tmp' -c 'D:\Animal_Adventure\.tmp\nginx-animal-adventure-wrapper.conf'
+```
+
+## Step 8 — Start FastAPI
+
+```powershell
+cd D:\Animal_Adventure
+& 'C:\Users\OEM\AppData\Local\Python\bin\python.exe' -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+## Step 9 — Verify Deployment
 
 Open these URLs in Chrome:
 
@@ -162,15 +212,15 @@ Open these URLs in Chrome:
 After changing the Nginx config, reload without downtime:
 
 ```powershell
-cd C:\nginx
-.\nginx.exe -s reload
+cd D:\Animal_Adventure
+& 'D:\nginx\nginx.exe' -p 'D:\Animal_Adventure\.tmp' -c 'D:\Animal_Adventure\.tmp\nginx-animal-adventure-wrapper.conf' -s reload
 ```
 
 Stop Nginx:
 
 ```powershell
-cd C:\nginx
-.\nginx.exe -s stop
+cd D:\Animal_Adventure
+& 'D:\nginx\nginx.exe' -p 'D:\Animal_Adventure\.tmp' -c 'D:\Animal_Adventure\.tmp\nginx-animal-adventure-wrapper.conf' -s stop
 ```
 
 Nginx is **not** a Windows service by default. Each machine reboot requires a manual restart
@@ -185,7 +235,7 @@ Run manually:
 
 ```powershell
 cd D:\Animal_Adventure
-python deploy/scripts/watchdog.py
+& 'C:\Users\OEM\AppData\Local\Python\bin\python.exe' deploy/scripts/watchdog.py
 ```
 
 The watchdog is a one-shot script, not a daemon. For automatic recovery after a crash, call
@@ -195,8 +245,9 @@ it on a schedule using Windows Task Scheduler or a monitoring loop.
 
 The MVP does not automatically survive a full machine reboot. After reboot:
 
-1. Start Nginx manually (Step 6 above).
-2. Start FastAPI manually (Step 7 above).
+1. Recreate the local Nginx wrapper if `.tmp` was cleaned (Step 6 above).
+2. Start Nginx manually (Step 7 above).
+3. Start FastAPI manually (Step 8 above).
 
 To automate startup, create a Windows Task Scheduler entry that triggers on user logon and
 runs both commands. This is optional for MVP development.
@@ -217,8 +268,12 @@ Port `8080` is a high port and typically does not require administrator privileg
 |------|-----------|
 | Port `80` requires administrator privileges or is occupied by IIS/Skype | Use port `8080` (the default). Only switch to port `80` if explicitly needed and the port is free. |
 | Windows Firewall blocks Nginx on first start | Accept the Windows Firewall prompt; allow private network access only. |
-| Paths with spaces break Nginx config | Extract Nginx to `C:\nginx`. Run `configure-nginx.ps1` to normalize project root separators; avoid paths with spaces. |
+| Paths with spaces break Nginx config | Keep Nginx at `D:\nginx`. Run `configure-nginx.ps1` to normalize project root separators; avoid paths with spaces. |
+| Passing `animal-adventure.nginx.conf` directly to `nginx.exe -c` fails | Use the wrapper config from Step 6, or include the generated `server` block inside `D:\nginx\conf\nginx.conf` under `http {}`. |
+| This user cannot write to `D:\nginx\logs` or the default Nginx pid path | Use the wrapper config from Step 6 so logs, pid, and temp files live under `D:\Animal_Adventure\.tmp`. |
+| PowerShell blocks `npm.ps1` | Use `C:\Program Files\nodejs\npm.CMD` in PowerShell, or run `npm` from Git Bash. |
+| Bare `python` resolves to WindowsApps shim | Use `C:\Users\OEM\AppData\Local\Python\bin\python.exe`. |
 | Nginx `alias` requires trailing slash on both location and alias target | The generated config from the template always includes trailing slashes on `/assets/`. Do not edit manually without preserving them. |
 | Nginx is not a Windows service and does not survive reboot | Document the manual restart procedure. Configure Windows Task Scheduler for automatic restart if needed. |
 | Browser caches changed assets and hides updates | Hard refresh with `Ctrl+Shift+R` during development. |
-| FastAPI process crashes | Run `python deploy/scripts/watchdog.py` to restart uvicorn, or configure Task Scheduler to call the watchdog on a regular interval. |
+| FastAPI process crashes | Run `C:\Users\OEM\AppData\Local\Python\bin\python.exe deploy/scripts/watchdog.py` to restart uvicorn, or configure Task Scheduler to call the watchdog on a regular interval. |
