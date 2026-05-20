@@ -31,7 +31,9 @@ Browser → http://localhost:8080/
               ▼
            Nginx (port 8080)
            ├─ /          → dist/index.html  (frontend SPA)
-           ├─ /assets/   → assets/          (static assets)
+           ├─ /assets/   → dist/assets/     (built JS/CSS)
+           ├─ /assets/images/ → assets/images/ (game images)
+           ├─ /assets/music/  → assets/music/  (game music)
            ├─ /api/      → 127.0.0.1:8000   (FastAPI)
            ├─ /health    → 127.0.0.1:8000
            ├─ /ready     → 127.0.0.1:8000
@@ -97,6 +99,8 @@ The generated config file: `deploy/nginx/animal-adventure.nginx.conf`
 
 Important: this generated file is a `server { ... }` block. It is meant to be included inside a top-level Nginx `http {}` block. Do not pass it directly to `nginx.exe -c`; Nginx will reject a bare `server` block as a top-level config.
 
+The equivalent Nginx command forms used below are `nginx.exe -t`, `nginx.exe -s reload`, and `nginx.exe -s stop`; this guide uses explicit `D:\nginx\nginx.exe` paths so the commands work on this machine.
+
 ## Step 5 — Nginx Config Reference
 
 The template shape (from `deploy/nginx/animal-adventure.nginx.conf.template`):
@@ -113,8 +117,16 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    location /assets/images/ {
+        alias {{PROJECT_ROOT}}/assets/images/;
+    }
+
+    location /assets/music/ {
+        alias {{PROJECT_ROOT}}/assets/music/;
+    }
+
     location /assets/ {
-        alias {{PROJECT_ROOT}}/assets/;
+        alias {{PROJECT_ROOT}}/dist/assets/;
     }
 
     location /api/ {
@@ -273,7 +285,7 @@ Port `8080` is a high port and typically does not require administrator privileg
 | This user cannot write to `D:\nginx\logs` or the default Nginx pid path | Use the wrapper config from Step 6 so logs, pid, and temp files live under `D:\Animal_Adventure\.tmp`. |
 | PowerShell blocks `npm.ps1` | Use `C:\Program Files\nodejs\npm.CMD` in PowerShell, or run `npm` from Git Bash. |
 | Bare `python` resolves to WindowsApps shim | Use `C:\Users\OEM\AppData\Local\Python\bin\python.exe`. |
-| Nginx `alias` requires trailing slash on both location and alias target | The generated config from the template always includes trailing slashes on `/assets/`. Do not edit manually without preserving them. |
+| Nginx `alias` requires trailing slash on both location and alias target | The generated config from the template always includes trailing slashes on `/assets/`, `/assets/images/`, and `/assets/music/`. Do not edit manually without preserving them. |
 | Nginx is not a Windows service and does not survive reboot | Document the manual restart procedure. Configure Windows Task Scheduler for automatic restart if needed. |
 | Browser caches changed assets and hides updates | Hard refresh with `Ctrl+Shift+R` during development. |
 | FastAPI process crashes | Run `C:\Users\OEM\AppData\Local\Python\bin\python.exe deploy/scripts/watchdog.py` to restart uvicorn, or configure Task Scheduler to call the watchdog on a regular interval. |

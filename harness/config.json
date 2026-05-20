@@ -6,11 +6,11 @@
     "TASK_BUILD": 180,
     "EXECUTE": 600,
     "REVIEW": 600,
-    "FIX": 600,
+    "FIX": 900,
     "FIX_REGRESSION": 1200,
     "CLEANUP": 300,
-    "EVALUATE_TESTS": 300,
-    "EVALUATE": 600
+    "EVALUATE_TESTS": 900,
+    "EVALUATE": 2400
   },
   "max_attempts": 3,
   "verify_fail_escalation": 2,

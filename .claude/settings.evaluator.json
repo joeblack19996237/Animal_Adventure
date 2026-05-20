@@ -30,6 +30,7 @@
       "Bash(python workspace/eval_ws.py*)",
       "Bash(python harness/eval_services.py start-api*)",
       "Bash(python harness/eval_services.py start-vite*)",
+      "Bash(python harness/eval_services.py start-nginx*)",
       "Bash(python harness/eval_services.py check-nginx*)",
       "Bash(python harness/eval_services.py cleanup*)",
       "Bash(python -m uvicorn*)",

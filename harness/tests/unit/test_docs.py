@@ -86,6 +86,7 @@ def test_evaluator_docs_use_eval_services_for_startup_and_cleanup():
     text = _text(".claude/agents/evaluator.md")
     assert "python harness/eval_services.py start-api" in text
     assert "python harness/eval_services.py start-vite" in text
+    assert "python harness/eval_services.py start-nginx" in text
     assert "python harness/eval_services.py check-nginx" in text
     assert "python harness/eval_services.py cleanup" in text
 
@@ -223,8 +224,16 @@ def test_evaluator_docs_include_animal_adventure_game_criteria():
         "backend restart persistence",
         "backend tracebacks",
         "Nginx routes frontend",
+        "webkit-ipad",
+        "touch joystick",
+        "npm run test:e2e:nginx",
+        "workspace/eval-services/eval.sqlite3",
+        "workspace/eval-services/api.log",
+        "workspace/eval-services/nginx-error.log",
+        "Production entrypoint integrity",
     ]:
         assert marker in text
+    assert "phase 16" not in text.lower()
 
 
 def test_builder_and_reviewer_docs_preserve_assets_and_config():

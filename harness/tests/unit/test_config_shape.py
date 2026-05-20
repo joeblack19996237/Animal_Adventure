@@ -29,6 +29,9 @@ def test_config_has_animal_adventure_defaults():
     assert config["default_language"] == "python"
     assert config["default_app_type"] == "game"
     assert config["default_spec_path"] == "docs"
+    assert config["subprocess_timeout"]["EVALUATE"] == 2400
+    assert config["subprocess_timeout"]["EVALUATE_TESTS"] == 900
+    assert config["subprocess_timeout"]["FIX"] == 900
     assert get_evaluation_min_score_pct(config) == 0.9
     assert get_cleanup_fix_deferred_issues(config) is False
     assert get_game_quick_smoke_phase_ids(config) == [5, 8, 11, 14, 16]
@@ -267,6 +270,7 @@ def test_evaluator_settings_allow_eval_service_start_and_check_commands():
     for command in [
         "Bash(python harness/eval_services.py start-api*)",
         "Bash(python harness/eval_services.py start-vite*)",
+        "Bash(python harness/eval_services.py start-nginx*)",
         "Bash(python harness/eval_services.py check-nginx*)",
         "Bash(python harness/eval_services.py cleanup*)",
     ]:

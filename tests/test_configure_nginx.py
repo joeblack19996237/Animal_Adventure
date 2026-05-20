@@ -8,7 +8,16 @@ SCRIPT_PATH = PROJECT_ROOT / "deploy" / "scripts" / "configure-nginx.ps1"
 TEMPLATE_PATH = (
     PROJECT_ROOT / "deploy" / "nginx" / "animal-adventure.nginx.conf.template"
 )
-REQUIRED_ROUTES = ["/", "/assets/", "/api/", "/health", "/ready", "/ws/"]
+REQUIRED_ROUTES = [
+    "/",
+    "/assets/",
+    "/assets/images/",
+    "/assets/music/",
+    "/api/",
+    "/health",
+    "/ready",
+    "/ws/",
+]
 
 
 def test_configure_nginx_script_exists() -> None:
@@ -52,3 +61,6 @@ def test_configure_nginx_generates_project_paths(tmp_path: Path) -> None:
     )
     for route in REQUIRED_ROUTES:
         assert route in content, f"Route '{route}' missing from generated config"
+    assert f"alias {normalized_root}/dist/assets/;" in content
+    assert f"alias {normalized_root}/assets/images/;" in content
+    assert f"alias {normalized_root}/assets/music/;" in content

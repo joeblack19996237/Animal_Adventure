@@ -9,8 +9,16 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    location /assets/images/ {
+        alias {{PROJECT_ROOT}}/assets/images/;
+    }
+
+    location /assets/music/ {
+        alias {{PROJECT_ROOT}}/assets/music/;
+    }
+
     location /assets/ {
-        alias {{PROJECT_ROOT}}/assets/;
+        alias {{PROJECT_ROOT}}/dist/assets/;
     }
 
     location /api/ {

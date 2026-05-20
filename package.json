@@ -7,6 +7,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "node ./tests/e2e/run-playwright.mjs",
+    "test:e2e:nginx": "playwright test --config=playwright.nginx.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -47,11 +47,13 @@ If any of these ports are occupied at run time, stop the occupying process or ch
 
 ## Verified Nginx Configuration Status
 
-The generated Nginx file currently contains a `server { ... }` block with:
+The generated Nginx file contains a `server { ... }` block with:
 
 - `listen 8080`
 - `root D:/Animal_Adventure/dist`
-- `/assets/` aliased to `D:/Animal_Adventure/assets/`
+- `/assets/` aliased to `D:/Animal_Adventure/dist/assets/` for Vite-built JS/CSS
+- `/assets/images/` aliased to `D:/Animal_Adventure/assets/images/`
+- `/assets/music/` aliased to `D:/Animal_Adventure/assets/music/`
 - `/api/`, `/health`, `/ready`, and `/ws/` proxied to `http://127.0.0.1:8000`
 
 Important: running this file directly with:

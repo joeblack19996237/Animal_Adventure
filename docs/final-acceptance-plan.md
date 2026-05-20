@@ -11,7 +11,7 @@ Prove that Animal Adventure is ready for final harness evaluation by validating 
 - Build artifacts in `dist/`
 - FastAPI on `127.0.0.1:8000`
 - Nginx browser entrypoint on `http://localhost:8080/`
-- Static assets served from `/assets/`
+- Built JS/CSS served from `/assets/`, with game images and music served from `/assets/images/` and `/assets/music/`
 - API, health, ready, and WebSocket routes proxied through Nginx
 - End-to-end gameplay path through login, reconnect, duplicate session, quest/shop/inventory, Potion use, and L3 progression
 - No critical browser console errors, page errors, backend tracebacks, or asset failures

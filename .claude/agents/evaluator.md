@@ -38,18 +38,26 @@ You are the **evaluator** agent in the autonomous dev harness. Your job is to ru
 
 ### Game (`app_type: game`)
 
-- Start the game server via `python harness/eval_services.py start-api` and `python harness/eval_services.py start-vite`.
-- Use Playwright to load the game in headless Chromium.
-- Simulate normal play for ≥60 seconds (keyboard events, mouse clicks).
+- Prefer the existing Node Playwright suite for browser gameplay checks. Use `npm run test:e2e:nginx` for the Nginx-served game path, with `--project=chromium` and `--project=webkit-ipad` when isolating browser-specific evidence. Do not install Playwright; if a required browser is unavailable, report it as an external dependency.
+- Write Python workspace scripts only for supplemental HTTP, WebSocket, database, or log checks that are not already covered by the Node Playwright suite.
+- Evaluation scripts must own service lifecycle: run `python harness/eval_services.py cleanup` before starting services, start services, perform checks, and call `python harness/eval_services.py cleanup` again in `finally`.
+- Run `npm run build`, then validate the production-like Nginx route with `python harness/eval_services.py check-nginx`.
+- Start the API with `python harness/eval_services.py start-api` and the Nginx-served game with `python harness/eval_services.py start-nginx`.
+- Use Playwright to load the game from `http://localhost:8080/` in headless Chromium and the configured `webkit-ipad` project.
+- Simulate normal play for ≥60 seconds (keyboard events, mouse clicks, and touch input where applicable).
 - Capture screenshots at key moments.
 - Monitor browser console for errors.
+- Verify Nginx routes frontend built JS/CSS, `/assets/images/...`, `/assets/music/...`, `/api/`, `/health`, `/ready`, and `/ws/` correctly.
 - For Animal Adventure, verify the Phaser canvas is visible and non-empty by checking canvas bounding box plus screenshot pixels.
 - Verify map rendering requests prepared tiles from `/assets/images/MapTiles/...` and does not load `/assets/images/Items/game_map_full.png` as one Phaser texture.
 - Verify name-only login creates/loads players and returning player lookup is case-insensitive.
 - Verify WebSocket reconnect receives `state_sync` and restores durable state.
+- Verify webkit-ipad touch joystick movement and WebSocket reconnect behavior, and report missing WebKit as an external dependency rather than silently skipping it.
 - Verify server-authoritative movement bounds, including rejection of invalid out-of-bounds movement.
 - Verify quest accept, pickup, turn-in, Potion purchase/use, and L3 progression.
 - Verify reload and backend restart persistence.
+- Verify database state against `workspace/eval-services/eval.sqlite3` when services are started via `harness/eval_services.py`.
+- Inspect `workspace/eval-services/api.log` and `workspace/eval-services/nginx-error.log` for backend tracebacks, startup errors, proxy errors, and asset resolution errors.
 - Fail on console/page errors, 404 assets, unresolved API calls, and backend tracebacks.
 - Long-lived services started by evaluation scripts must be registered through `harness/eval_services.py`, cleaned up in `finally`, and cleaned again with `python harness/eval_services.py cleanup` before exit; cleanup terminates the registered service process tree, not only the parent process.
 
@@ -80,10 +88,12 @@ Select rows by `app_type`. All **Common** rows always apply.
 | Frontend/backend integration | Web | 4 | UI calls the real configured API/base URL and handles success/error states without mocked-only assumptions. |
 | Web accessibility | Web | 4 | Semantic HTML, labels or accessible names on controls, ARIA on icon-only buttons. Keyboard nav doesn't trap focus. |
 | Game loop stability | Game | 5 | Runs ≥60s without crash, freeze, or console error under simulated normal play. |
+| Production entrypoint integrity | Game | 4 | Browser entrypoint serves the built app, JS/CSS/assets/API/ws from the same origin without dev-server-only assumptions. |
 | Phaser render integrity | Game | 5 | Canvas is visible and screenshot pixels are non-empty. Deduct 5 for blank/hidden canvas. |
 | Player controls | Game | 5 | Every input action triggers correct entity state change. Deduct 1 per missing/mis-mapped control. |
 | Animal Adventure login | Game | 5 | Name-only login works; returning player lookup is case-insensitive. |
 | WebSocket reconnect | Game | 5 | Forced disconnect reconnects and receives `state_sync` with durable state. |
+| WebKit-iPad compatibility | Game | 4 | `webkit-ipad` touch controls, reconnect, and core gameplay smoke work. Deduct 2 per missing or failing WebKit-only path. |
 | Movement authority | Game | 5 | Server accepts in-bounds movement and rejects invalid out-of-bounds movement. |
 | Quest and L3 loop | Game | 5 | Quest accept/pickup/turn-in, Potion purchase/use, and L3 progression work end-to-end. |
 | Persistence recovery | Game | 5 | Reload and backend restart preserve player position, inventory, quests, level, and unlocks. |
@@ -139,7 +149,7 @@ Append the next iteration's section after the `---` separator when writing itera
   "iteration": 1,
   "phase_id": 7,
   "verdict": "APPROVE",
-  "score": {"total": 50, "max": 50},
+  "score": {"total": 72, "max": 76},
   "issues": [
     {
       "id": "7.1",

@@ -16,8 +16,9 @@ if (-not (Test-Path $templatePath)) {
     exit 1
 }
 
-$content = [System.IO.File]::ReadAllText($templatePath, [System.Text.Encoding]::UTF8)
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$content = [System.IO.File]::ReadAllText($templatePath, $utf8NoBom)
 $generated = $content.Replace("{{PROJECT_ROOT}}", $normalizedRoot)
-[System.IO.File]::WriteAllText($outputPath, $generated, [System.Text.Encoding]::UTF8)
+[System.IO.File]::WriteAllText($outputPath, $generated, $utf8NoBom)
 
 Write-Host "Generated: $outputPath"
