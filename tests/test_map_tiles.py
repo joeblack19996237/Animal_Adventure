@@ -218,6 +218,50 @@ class TestMapTileCoordinates:
             )
 
 
+def _check_row_horizontal_coverage(y: int, row_tiles: list[dict[str, Any]]) -> int:
+    """Validate a row's tiles are contiguous from x=0 to MAP_WIDTH. Returns row height."""
+    assert row_tiles[0]["x"] == 0, (
+        f"Row at y={y}: first tile must start at x=0, got x={row_tiles[0]['x']}"
+    )
+    for i in range(len(row_tiles) - 1):
+        current = row_tiles[i]
+        nxt = row_tiles[i + 1]
+        expected_next_x = current["x"] + current["width"]
+        assert nxt["x"] == expected_next_x, (
+            f"Row at y={y}: gap or overlap between "
+            f"{current['id']!r} (x={current['x']}, w={current['width']}) "
+            f"and {nxt['id']!r} (x={nxt['x']})"
+        )
+    last_tile = row_tiles[-1]
+    row_right_edge = last_tile["x"] + last_tile["width"]
+    assert row_right_edge == MAP_WIDTH, (
+        f"Row at y={y}: ends at x={row_right_edge}, expected {MAP_WIDTH}"
+    )
+    return row_tiles[0]["height"]
+
+
+def _check_vertical_coverage(
+    sorted_y_values: list[int], row_heights: dict[int, int]
+) -> None:
+    """Validate rows are contiguous from y=0 to MAP_HEIGHT."""
+    assert sorted_y_values[0] == 0, (
+        f"First row must start at y=0, got y={sorted_y_values[0]}"
+    )
+    for i in range(len(sorted_y_values) - 1):
+        y = sorted_y_values[i]
+        next_y = sorted_y_values[i + 1]
+        expected_next_y = y + row_heights[y]
+        assert next_y == expected_next_y, (
+            f"Gap or overlap between row y={y} (h={row_heights[y]}) "
+            f"and next row y={next_y}"
+        )
+    last_y = sorted_y_values[-1]
+    bottom_edge = last_y + row_heights[last_y]
+    assert bottom_edge == MAP_HEIGHT, (
+        f"Last row ends at y={bottom_edge}, expected {MAP_HEIGHT}"
+    )
+
+
 class TestMapTileCoverage:
     def test_total_tile_area_equals_map_area(self, tiles: list[dict[str, Any]]) -> None:
         total_area = sum(tile["width"] * tile["height"] for tile in tiles)
@@ -229,12 +273,7 @@ class TestMapTileCoverage:
     def test_full_map_coverage_without_gaps_or_overlap(
         self, tiles: list[dict[str, Any]]
     ) -> None:
-        """Verify tiles cover 0..MAP_WIDTH by 0..MAP_HEIGHT with no gaps or overlaps.
-
-        Groups tiles by row (y coordinate), checks each row is horizontally
-        contiguous from x=0 to MAP_WIDTH, then checks rows are vertically
-        contiguous from y=0 to MAP_HEIGHT.
-        """
+        """Verify tiles cover 0..MAP_WIDTH by 0..MAP_HEIGHT with no gaps or overlaps."""
         rows: dict[int, list[dict[str, Any]]] = {}
         for tile in tiles:
             rows.setdefault(tile["y"], []).append(tile)
@@ -244,46 +283,9 @@ class TestMapTileCoverage:
 
         for y in sorted_y_values:
             row_tiles = sorted(rows[y], key=lambda t: t["x"])
-            row_heights[y] = row_tiles[0]["height"]
+            row_heights[y] = _check_row_horizontal_coverage(y, row_tiles)
 
-            assert row_tiles[0]["x"] == 0, (
-                f"Row at y={y}: first tile must start at x=0, got x={row_tiles[0]['x']}"
-            )
-
-            for i in range(len(row_tiles) - 1):
-                current = row_tiles[i]
-                nxt = row_tiles[i + 1]
-                expected_next_x = current["x"] + current["width"]
-                assert nxt["x"] == expected_next_x, (
-                    f"Row at y={y}: gap or overlap between "
-                    f"{current['id']!r} (x={current['x']}, w={current['width']}) "
-                    f"and {nxt['id']!r} (x={nxt['x']})"
-                )
-
-            last_tile = row_tiles[-1]
-            row_right_edge = last_tile["x"] + last_tile["width"]
-            assert row_right_edge == MAP_WIDTH, (
-                f"Row at y={y}: ends at x={row_right_edge}, expected {MAP_WIDTH}"
-            )
-
-        assert sorted_y_values[0] == 0, (
-            f"First row must start at y=0, got y={sorted_y_values[0]}"
-        )
-
-        for i in range(len(sorted_y_values) - 1):
-            y = sorted_y_values[i]
-            next_y = sorted_y_values[i + 1]
-            expected_next_y = y + row_heights[y]
-            assert next_y == expected_next_y, (
-                f"Gap or overlap between row y={y} (h={row_heights[y]}) "
-                f"and next row y={next_y}"
-            )
-
-        last_y = sorted_y_values[-1]
-        bottom_edge = last_y + row_heights[last_y]
-        assert bottom_edge == MAP_HEIGHT, (
-            f"Last row ends at y={bottom_edge}, expected {MAP_HEIGHT}"
-        )
+        _check_vertical_coverage(sorted_y_values, row_heights)
 
 
 class TestMapTileEdgeDimensions:
