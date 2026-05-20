@@ -98,7 +98,6 @@ Select rows by `app_type`. All **Common** rows always apply.
 | Quest and L3 loop | Game | 5 | Quest accept/pickup/turn-in, Potion purchase/use, and L3 progression work end-to-end. |
 | Persistence recovery | Game | 5 | Reload and backend restart preserve player position, inventory, quests, level, and unlocks. |
 | Asset integrity | Game | 4 | All sprites, sounds, and map tiles load (HTTP 200); map tiles come from `/assets/images/MapTiles/...` and the client does not load `game_map_full.png` as one texture. |
-| Nginx routing | Game | 4 | Nginx serves frontend/assets and proxies API/health/ready/ws to FastAPI correctly. |
 
 **Verdict rule:** `BLOCK` if any CRITICAL or HIGH issue is present, or if the
 total score is below the minimum threshold provided in the harness prompt;
