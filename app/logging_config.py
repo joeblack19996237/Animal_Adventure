@@ -15,11 +15,11 @@ RESOURCE_LOG_BACKUP_COUNT = 30
 
 SERVICE_NAME = "animal_adventure"
 
-_LOG_FILES: list[tuple[str, int]] = [
-    ("app.log", APP_LOG_BACKUP_COUNT),
-    ("error.log", ERROR_LOG_BACKUP_COUNT),
-    ("player-events.log", PLAYER_EVENTS_LOG_BACKUP_COUNT),
-    ("resource.log", RESOURCE_LOG_BACKUP_COUNT),
+_LOG_FILES: list[tuple[str, int, int]] = [
+    ("app.log", APP_LOG_BACKUP_COUNT, logging.DEBUG),
+    ("error.log", ERROR_LOG_BACKUP_COUNT, logging.ERROR),
+    ("player-events.log", PLAYER_EVENTS_LOG_BACKUP_COUNT, logging.DEBUG),
+    ("resource.log", RESOURCE_LOG_BACKUP_COUNT, logging.WARNING),
 ]
 
 
@@ -239,14 +239,14 @@ def configure_logging(log_dir: Path) -> list[logging.Handler]:
     logger.setLevel(logging.DEBUG)
 
     handlers: list[logging.Handler] = []
-    for filename, backup_count in _LOG_FILES:
+    for filename, backup_count, level in _LOG_FILES:
         handler = logging.handlers.TimedRotatingFileHandler(
             filename=log_dir / filename,
             when="midnight",
             backupCount=backup_count,
             encoding="utf-8",
         )
-        handler.setLevel(logging.DEBUG)
+        handler.setLevel(level)
         logger.addHandler(handler)
         handlers.append(handler)
 
