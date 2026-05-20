@@ -19,22 +19,23 @@ const localStorageAdapter: Storage = {
   get: (key) => {
     try {
       return globalThis.localStorage?.getItem(key) ?? null;
-    } catch {
+    } catch (e: unknown) {
+      console.warn('localStorage.getItem failed', e);
       return null;
     }
   },
   set: (key, value) => {
     try {
       globalThis.localStorage?.setItem(key, value);
-    } catch {
-      // storage unavailable — silently ignore
+    } catch (e: unknown) {
+      console.warn('localStorage.setItem failed', e);
     }
   },
   remove: (key) => {
     try {
       globalThis.localStorage?.removeItem(key);
-    } catch {
-      // storage unavailable — silently ignore
+    } catch (e: unknown) {
+      console.warn('localStorage.removeItem failed', e);
     }
   },
 };

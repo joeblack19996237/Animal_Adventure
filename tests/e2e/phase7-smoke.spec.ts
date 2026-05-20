@@ -3,6 +3,13 @@ import { test, expect } from '@playwright/test';
 const PLAYERS_API = '**/api/v1/players';
 
 test.describe('@phase7-smoke', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', (err) => console.error('[pageerror]', err.message));
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') console.error('[console.error]', msg.text());
+    });
+  });
+
   test('login_name_only: UI shows name input only', async ({ page }) => {
     await page.goto('/');
 
