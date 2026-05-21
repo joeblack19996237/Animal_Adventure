@@ -7,6 +7,8 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from app.logging_config import emit_ready, emit_shutdown, emit_startup
+from app.routes.config import router as config_router
+from app.routes.logs import router as logs_router
 from app.routes.players import router as players_router
 from app.services.quest_expiry_worker import SCAN_INTERVAL_SECONDS, QuestExpiryWorker
 from app.settings import Settings
@@ -57,6 +59,8 @@ async def _lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(title="Animal Adventure API", lifespan=_lifespan)
+app.include_router(config_router)
+app.include_router(logs_router)
 app.include_router(players_router)
 app.include_router(ws_router)
 

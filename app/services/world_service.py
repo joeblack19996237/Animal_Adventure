@@ -9,6 +9,10 @@ POSITION_SAVE_INTERVAL_SECONDS = 30.0
 MIN_MOVE_INTERVAL_SECONDS = 1.0 / 20.0  # 20Hz client max
 
 
+def is_in_world_bounds(x: float, y: float) -> bool:
+    return 0.0 <= x <= MAP_WIDTH and 0.0 <= y <= MAP_HEIGHT
+
+
 class MoveStatus(str, Enum):
     ACCEPTED = "accepted"
     OUT_OF_BOUNDS = "out_of_bounds"
@@ -56,7 +60,7 @@ class WorldService:
         if now - last_move < MIN_MOVE_INTERVAL_SECONDS:
             return MoveStatus.RATE_LIMITED
 
-        if not (0.0 <= x <= MAP_WIDTH and 0.0 <= y <= MAP_HEIGHT):
+        if not is_in_world_bounds(x, y):
             return MoveStatus.OUT_OF_BOUNDS
 
         self._positions[player_id] = {"x": x, "y": y, "direction": direction}

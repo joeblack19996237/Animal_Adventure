@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from app.db import connect_db
 from app.logging_config import emit_bootstrap_failure as _emit_bootstrap_failure
 from app.logging_config import emit_duplicate_session as _emit_duplicate_session
+from app.services.world_service import is_in_world_bounds
 from app.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -293,10 +294,23 @@ async def _handle_messages(
                 continue
 
             if msg.get("type") == "player_move":
+                x = float(msg.get("x", 0.0))
+                y = float(msg.get("y", 0.0))
+                if not is_in_world_bounds(x, y):
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "error",
+                                "code": "out_of_bounds",
+                                "message": "Movement coordinates are outside the world bounds.",
+                            }
+                        )
+                    )
+                    continue
                 await _broadcast_state_update(
                     player_id,
-                    float(msg.get("x", 0.0)),
-                    float(msg.get("y", 0.0)),
+                    x,
+                    y,
                     str(msg.get("direction", "down")),
                     int(msg.get("client_tick", 0)),
                 )

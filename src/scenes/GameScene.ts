@@ -185,6 +185,7 @@ export class GameScene extends Phaser.Scene {
   private coinsEl: HTMLSpanElement | null = null;
   private levelEl: HTMLSpanElement | null = null;
   private levelUpEl: HTMLDivElement | null = null;
+  private bootstrapErrorEl: HTMLDivElement | null = null;
 
   // Event listener references for cleanup
   private boundNpcInteract: ((e: Event) => void) | null = null;
@@ -218,7 +219,11 @@ export class GameScene extends Phaser.Scene {
   private async loadBootstrapAsync(): Promise<void> {
     const svc = new BootstrapService(window.location.origin);
     const result = await svc.fetchConfig();
-    if (result.kind !== 'ok') return;
+    if (result.kind !== 'ok') {
+      this.showBootstrapError(result.message);
+      return;
+    }
+    this.hideBootstrapError();
     const shop = result.config.shop as Record<string, unknown> | null;
     if (shop !== null && typeof shop === 'object' && Array.isArray(shop['items'])) {
       this.shopBootstrapItems = (shop['items'] as unknown[]).filter(isShopBootstrapItem);
@@ -231,6 +236,47 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.updateShopPanel();
+  }
+
+  private showBootstrapError(message: string): void {
+    if (this.bootstrapErrorEl === null) {
+      const overlay = document.createElement('div');
+      overlay.id = 'bootstrap-error';
+      overlay.dataset['testid'] = 'bootstrap-error';
+      overlay.style.cssText =
+        'position:fixed;top:0;left:0;width:100%;height:100%;z-index:2000;' +
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+        'gap:12px;background:rgba(8,12,24,0.94);color:#fff;text-align:center;padding:24px;';
+
+      const title = document.createElement('h2');
+      title.textContent = 'Configuration failed to load';
+      title.style.cssText = 'margin:0;color:#ffe066;font-size:1.5rem;';
+      overlay.appendChild(title);
+
+      const detail = document.createElement('p');
+      detail.textContent = message;
+      detail.style.cssText = 'margin:0;max-width:520px;color:#d8e6ff;';
+      overlay.appendChild(detail);
+
+      const retry = document.createElement('button');
+      retry.textContent = 'Retry';
+      retry.style.cssText = 'padding:8px 18px;cursor:pointer;font-size:1rem;';
+      retry.addEventListener('click', () => {
+        overlay.style.display = 'none';
+        void this.loadBootstrapAsync();
+      });
+      overlay.appendChild(retry);
+
+      document.body.appendChild(overlay);
+      this.bootstrapErrorEl = overlay;
+    }
+    this.bootstrapErrorEl.style.display = 'flex';
+  }
+
+  private hideBootstrapError(): void {
+    if (this.bootstrapErrorEl !== null) {
+      this.bootstrapErrorEl.style.display = 'none';
+    }
   }
 
   private connectWebSocket(): void {
@@ -912,7 +958,7 @@ export class GameScene extends Phaser.Scene {
     if (this.boundQuestTurnIn !== null) window.removeEventListener('game:quest-turn-in', this.boundQuestTurnIn);
     if (this.boundItemPickup !== null) window.removeEventListener('game:item-pickup', this.boundItemPickup);
     // Remove DOM elements
-    const idsToRemove = ['hud', 'quest-dialog', 'quest-timer', 'shop-panel', 'inventory-panel'];
+    const idsToRemove = ['hud', 'quest-dialog', 'quest-timer', 'shop-panel', 'inventory-panel', 'bootstrap-error'];
     for (const id of idsToRemove) {
       const el = document.getElementById(id);
       if (el?.parentElement) el.parentElement.removeChild(el);
