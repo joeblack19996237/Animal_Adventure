@@ -19,6 +19,7 @@ import {
 import { BootstrapService } from '../services/BootstrapService';
 import { GameDomController } from './game/GameDomController';
 import { publishGameStore } from './game/GameStoreDebug';
+import { JoystickController } from './game/JoystickController';
 import {
   formatCountdown,
   isItemRecord,
@@ -46,7 +47,6 @@ const MAP_TILE_MANIFEST: MapTileManifest = mapTilesJson;
 const PLAYER_ID_KEY = 'animal_adventure_player_id';
 const PLAYER_SPEED = 300;
 const JOYSTICK_RADIUS = 48;
-
 export class GameScene extends Phaser.Scene {
   private wsClient: WSClient | null = null;
   private playerId = '';
@@ -56,14 +56,7 @@ export class GameScene extends Phaser.Scene {
   private clientTick = 0;
   private sceneReady = false;
   private stateSyncReceived = false;
-  private joystickEl: HTMLDivElement | null = null;
-  private joystickActive = false;
-  private joystickStartX = 0;
-  private joystickStartY = 0;
-  private joystickDx = 0;
-  private joystickDy = 0;
   private inputState: InputState = createInputState();
-
   private quests: QuestRecord[] = [];
   private worldItems: WorldItemRecord[] = [];
   private inventory: InventoryRecord[] = [];
@@ -71,19 +64,15 @@ export class GameScene extends Phaser.Scene {
   private coins = 0;
   private level = 0;
   private serverTimeOffsetMs = 0;
-
   private pendingQuestOffer: QuestOffer | null = null;
   private activeQuestId: string | null = null;
   private completedQuestIds: Set<string> = new Set();
-
   private questDeadlineMs: number | null = null;
   private questTimerInterval: ReturnType<typeof setInterval> | null = null;
-
   private shopBootstrapItems: ShopBootstrapItem[] = [];
   private consumableItemIds: Set<string> = new Set();
-
   private dom: GameDomController;
-
+  private joystick: JoystickController;
   private boundNpcInteract: ((e: Event) => void) | null = null;
   private boundQuestTurnIn: ((e: Event) => void) | null = null;
   private boundItemPickup: ((e: Event) => void) | null = null;
@@ -102,20 +91,27 @@ export class GameScene extends Phaser.Scene {
       },
       onBootstrapRetry: () => void this.loadBootstrapAsync(),
     });
+    this.joystick = new JoystickController(
+      JOYSTICK_RADIUS,
+      (dx, dy) => {
+        this.inputState = applyJoystickMove(this.inputState, dx, dy);
+      },
+      () => {
+        this.inputState = applyJoystickRelease(this.inputState);
+      },
+    );
   }
-
   preload(): void {
     for (const entry of buildMapTileLoadList(MAP_TILE_MANIFEST)) {
       this.load.image(entry.key, entry.url);
     }
   }
-
   create(): void {
     for (const tile of MAP_TILE_MANIFEST.tiles) {
       this.add.image(tile.x + tile.width / 2, tile.y + tile.height / 2, tile.id);
     }
     this.cameras.main.setBounds(0, 0, MAP_TILE_MANIFEST.map_width, MAP_TILE_MANIFEST.map_height);
-    this.createJoystick();
+    this.joystick.create();
     this.dom.create();
     this.registerGameEventListeners();
     this.sceneReady = true;
@@ -123,7 +119,6 @@ export class GameScene extends Phaser.Scene {
     this.updateGameStore();
     void this.loadBootstrapAsync();
   }
-
   private async loadBootstrapAsync(): Promise<void> {
     const svc = new BootstrapService(window.location.origin);
     const result = await svc.fetchConfig();
@@ -458,52 +453,6 @@ export class GameScene extends Phaser.Scene {
     window.addEventListener('keyup', this.boundKeyUp);
   }
 
-  // --- Joystick (existing) ---
-
-  private createJoystick(): void {
-    const base = document.createElement('div');
-    base.id = 'joystick-base';
-    base.style.cssText =
-      `position:fixed;bottom:60px;left:60px;` +
-      `width:${JOYSTICK_RADIUS * 2}px;height:${JOYSTICK_RADIUS * 2}px;` +
-      `border-radius:50%;background:rgba(255,255,255,0.3);` +
-      `border:2px solid rgba(255,255,255,0.6);touch-action:none;z-index:100;`;
-    document.body.appendChild(base);
-    this.joystickEl = base;
-
-    base.addEventListener('pointerdown', (e: PointerEvent) => {
-      e.preventDefault();
-      base.setPointerCapture(e.pointerId);
-      this.joystickActive = true;
-      this.joystickStartX = e.clientX;
-      this.joystickStartY = e.clientY;
-      this.joystickDx = 0;
-      this.joystickDy = 0;
-      this.inputState = applyJoystickMove(this.inputState, 0, 0);
-    });
-
-    base.addEventListener('pointermove', (e: PointerEvent) => {
-      if (!this.joystickActive) return;
-      const rawDx = e.clientX - this.joystickStartX;
-      const rawDy = e.clientY - this.joystickStartY;
-      const dist = Math.sqrt(rawDx * rawDx + rawDy * rawDy);
-      if (dist === 0) { this.joystickDx = 0; this.joystickDy = 0; return; }
-      const clamp = Math.min(dist, JOYSTICK_RADIUS);
-      this.joystickDx = (rawDx / dist) * (clamp / JOYSTICK_RADIUS);
-      this.joystickDy = (rawDy / dist) * (clamp / JOYSTICK_RADIUS);
-      this.inputState = applyJoystickMove(this.inputState, this.joystickDx, this.joystickDy);
-    });
-
-    const stopJoystick = (): void => {
-      this.joystickActive = false;
-      this.joystickDx = 0;
-      this.joystickDy = 0;
-      this.inputState = applyJoystickRelease(this.inputState);
-    };
-    base.addEventListener('pointerup', stopJoystick);
-    base.addEventListener('pointercancel', stopJoystick);
-  }
-
   update(_time: number, delta: number): void {
     if (this.wsClient === null || !this.stateSyncReceived) return;
     const vector = getMovementVector(this.inputState);
@@ -544,10 +493,6 @@ export class GameScene extends Phaser.Scene {
     if (this.boundKeyDown !== null) window.removeEventListener('keydown', this.boundKeyDown);
     if (this.boundKeyUp !== null) window.removeEventListener('keyup', this.boundKeyUp);
     this.dom.destroy();
-    // Remove joystick
-    if (this.joystickEl?.parentElement) {
-      this.joystickEl.parentElement.removeChild(this.joystickEl);
-      this.joystickEl = null;
-    }
+    this.joystick.destroy();
   }
 }

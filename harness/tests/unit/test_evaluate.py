@@ -10,6 +10,7 @@ import agents
 import evaluate as eval_mod
 import state as state_mod
 from evaluate import (
+    _enforce_evaluation_report_gate,
     _extract_rubric_section,
     _infer_evaluate_app_type,
     _normalize_evaluate_result,
@@ -587,6 +588,96 @@ def test_low_score_approve_adds_synthetic_score_issue_when_no_issues(sample_conf
     issue = result["signal"]["issues"][0]
     assert issue["severity"] == "HIGH"
     assert issue["title"] == "Evaluation score below threshold"
+
+
+def _write_valid_game_rubric_report(tmp_workspace, iteration=1):
+    (tmp_workspace / "workspace" / "rubric-report.md").write_text(
+        f"""# Rubric Report — Iteration {iteration}
+
+## Spec Acceptance Checklist
+| Requirement | Status | Evidence |
+|-------------|--------|----------|
+| WebKit-iPad touch joystick | verified | npm run test:e2e -- --project=webkit-ipad |
+
+## Command Evidence
+| Command | Exit | Evidence |
+|---------|------|----------|
+| npm run test:e2e -- --project=webkit-ipad | 0 | passed |
+
+## Code Quality Audit
+| Check | Status |
+|-------|--------|
+| python harness/eval_quality_gates.py | verified |
+""",
+        encoding="utf-8",
+    )
+
+
+def test_game_evaluation_report_gate_allows_complete_report(tmp_workspace):
+    result = _approve(1)
+    _write_valid_game_rubric_report(tmp_workspace)
+
+    _enforce_evaluation_report_gate(result, 2, "game", 1)
+
+    assert result["signal"]["verdict"] == "APPROVE"
+    assert result["signal"]["issues"] == []
+
+
+def test_game_evaluation_report_gate_blocks_missing_required_sections(tmp_workspace):
+    result = _approve(1)
+    (tmp_workspace / "workspace" / "rubric-report.md").write_text(
+        "# Rubric Report — Iteration 1\n## Score Summary\nLooks good.\n",
+        encoding="utf-8",
+    )
+
+    _enforce_evaluation_report_gate(result, 2, "game", 1)
+
+    assert result["signal"]["verdict"] == "BLOCK"
+    issue = result["signal"]["issues"][0]
+    assert issue["severity"] == "HIGH"
+    assert "Spec Acceptance Checklist" in issue["description"]
+
+
+def test_game_evaluation_report_gate_blocks_not_tested_core_item(tmp_workspace):
+    result = _approve(1)
+    _write_valid_game_rubric_report(tmp_workspace)
+    report = (tmp_workspace / "workspace" / "rubric-report.md").read_text(
+        encoding="utf-8"
+    )
+    (tmp_workspace / "workspace" / "rubric-report.md").write_text(
+        report.replace("verified | npm", "not_tested | npm"),
+        encoding="utf-8",
+    )
+
+    _enforce_evaluation_report_gate(result, 2, "game", 1)
+
+    assert result["signal"]["verdict"] == "BLOCK"
+    assert "not_tested" in result["signal"]["issues"][0]["description"]
+
+
+def test_game_evaluation_report_gate_blocks_skipped_webkit_evidence(tmp_workspace):
+    result = _approve(1)
+    _write_valid_game_rubric_report(tmp_workspace)
+    report = (tmp_workspace / "workspace" / "rubric-report.md").read_text(
+        encoding="utf-8"
+    )
+    (tmp_workspace / "workspace" / "rubric-report.md").write_text(
+        report + "\nwebkit-ipad: skipped due to browser project filter\n",
+        encoding="utf-8",
+    )
+
+    _enforce_evaluation_report_gate(result, 2, "game", 1)
+
+    assert result["signal"]["verdict"] == "BLOCK"
+    assert "skipped" in result["signal"]["issues"][0]["description"]
+
+
+def test_evaluation_report_gate_ignores_non_game_reports(tmp_workspace):
+    result = _approve(1)
+
+    _enforce_evaluation_report_gate(result, 2, "web", 1)
+
+    assert result["signal"]["verdict"] == "APPROVE"
 
 
 def test_early_stop_requires_score_at_or_above_threshold(sample_config):

@@ -88,6 +88,9 @@ def run_evaluate_cycle(harness: Harness, state: dict) -> None:
             error_evaluate(state, "error", reason)
             return
         _normalize_evaluate_result(result, eval_phase_id, harness.config)
+        _enforce_evaluation_report_gate(
+            result, eval_phase_id, state["evaluate"]["app_type"], iteration
+        )
         update_evaluate_iteration(state, result)
         log_usage(
             task_id=f"evaluate_{iteration}",
@@ -326,6 +329,72 @@ def _normalize_evaluate_result(result: dict, eval_phase_id: int, config: dict) -
                 "workspace/rubric-report.md to derive concrete fixes."
             ),
         }
+    )
+
+
+def _enforce_evaluation_report_gate(
+    result: dict, eval_phase_id: int, app_type: str, iteration: int
+) -> None:
+    signal = result["signal"]
+    if app_type != "game" or signal.get("verdict") != "APPROVE":
+        return
+
+    report = _extract_rubric_section(iteration)
+    lower_report = report.lower()
+    problems: list[str] = []
+
+    required_sections = [
+        "Spec Acceptance Checklist",
+        "Command Evidence",
+        "Code Quality Audit",
+    ]
+    for section in required_sections:
+        if not _report_has_section(report, section):
+            problems.append(f"missing `{section}` section")
+
+    if "webkit-ipad" not in lower_report:
+        problems.append("missing explicit `webkit-ipad` evidence")
+    if re.search(r"\bnot[\s_-]?tested\b", lower_report):
+        problems.append("contains core requirements marked `not_tested`")
+    if any("webkit-ipad" in line and "skipped" in line for line in lower_report.splitlines()):
+        problems.append("counts skipped `webkit-ipad` evidence as acceptable")
+
+    if not problems:
+        return
+
+    signal["verdict"] = "BLOCK"
+    signal.setdefault("issues", []).append(
+        {
+            "id": f"{eval_phase_id}.report-gate",
+            "severity": "HIGH",
+            "dimension": "Quality",
+            "file": "workspace/rubric-report.md",
+            "title": "Evaluation report missing required game acceptance evidence",
+            "description": (
+                "Game evaluation returned APPROVE, but the rubric report is missing "
+                "required evidence: "
+                + "; ".join(problems)
+                + "."
+            ),
+            "suggestion": (
+                "Rerun evaluation with a rubric report that includes Spec Acceptance "
+                "Checklist, Command Evidence, Code Quality Audit, and explicit "
+                "passing webkit-ipad touch/reconnect evidence."
+            ),
+            "log_info": "",
+            "refs": "workspace/rubric-report.md",
+            "test_cases": [],
+            "non_automatable_reason": (
+                "This is an evaluator evidence failure; it must be fixed by rerunning "
+                "or correcting the evaluation report, not by changing product code."
+            ),
+        }
+    )
+
+
+def _report_has_section(report: str, title: str) -> bool:
+    return bool(
+        re.search(rf"^##+\s+{re.escape(title)}\b", report, flags=re.IGNORECASE | re.MULTILINE)
     )
 
 

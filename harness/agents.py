@@ -631,7 +631,11 @@ def evaluate(
         f"Minimum score threshold: {config.get('evaluation_min_score_pct', 0):.0%}.\n"
         f"Spec sections:\n{spec_sections}\n"
         "State file: workspace/state.json\n"
-        "Screenshots directory: workspace/screenshots/\n" + _JSON_SIGNAL_SUFFIX
+        "Screenshots directory: workspace/screenshots/\n"
+        "For game evaluation, rubric-report.md must include Spec Acceptance Checklist, "
+        "Command Evidence, Code Quality Audit, and explicit webkit-ipad evidence; "
+        "skipped WebKit-iPad checks do not count as verified.\n"
+        + _JSON_SIGNAL_SUFFIX
     )
     return call_claude(
         prompt,

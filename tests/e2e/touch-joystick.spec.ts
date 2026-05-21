@@ -58,6 +58,40 @@ const MINIMAL_BOOTSTRAP = {
   assets: {},
 };
 
+async function dispatchJoystickTouchPointer(
+  page: import('@playwright/test').Page,
+  selector: string,
+  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  point: { x: number; y: number },
+): Promise<void> {
+  await page.locator(selector).evaluate(
+    (el, event) => {
+      const target = el as HTMLElement;
+      const originalSetPointerCapture = target.setPointerCapture;
+      if (event.type === 'pointerdown') {
+        target.setPointerCapture = () => undefined;
+      }
+      try {
+        target.dispatchEvent(
+          new PointerEvent(event.type, {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 11,
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: event.point.x,
+            clientY: event.point.y,
+            buttons: event.type === 'pointerup' ? 0 : 1,
+          }),
+        );
+      } finally {
+        target.setPointerCapture = originalSetPointerCapture;
+      }
+    },
+    { type, point },
+  );
+}
+
 test.describe('e2e_touch_joystick_moves_player', () => {
   test('touch joystick simulates player movement in WebKit', async ({ page, browserName }) => {
     test.skip(browserName !== 'webkit', 'touch joystick test targets WebKit (iPad) only');
@@ -118,18 +152,21 @@ test.describe('e2e_touch_joystick_moves_player', () => {
 
     const centerX = box.x + box.width / 2;
     const centerY = box.y + box.height / 2;
-    // Move right: shift pointer by 40% of joystick width
     const moveX = centerX + box.width * 0.4;
 
-    // Use Playwright pointer API — avoids new Touch() constructor which is
-    // unavailable in Playwright's WebKit build. On real touch devices,
-    // pointerdown/pointermove events fire alongside touch events.
-    await page.mouse.move(centerX, centerY);
-    await page.mouse.down();
-    await page.mouse.move(moveX, centerY);
-
-    // Allow up to 500ms for the 20Hz game loop to emit at least one player_move
+    await dispatchJoystickTouchPointer(page, '#joystick-base', 'pointerdown', {
+      x: centerX,
+      y: centerY,
+    });
+    await dispatchJoystickTouchPointer(page, '#joystick-base', 'pointermove', {
+      x: moveX,
+      y: centerY,
+    });
     await page.waitForTimeout(500);
+    await dispatchJoystickTouchPointer(page, '#joystick-base', 'pointerup', {
+      x: moveX,
+      y: centerY,
+    });
 
     const moveMsgs = playerMoveMessages.filter((m) => typeof m['x'] === 'number');
     expect(
@@ -142,6 +179,7 @@ test.describe('e2e_touch_joystick_moves_player', () => {
       lastMove['x'],
       'player x must increase when joystick is pushed right',
     ).toBeGreaterThan(2715);
+    expect(lastMove['direction'], 'touch joystick should move right').toBe('right');
 
     expect(pageErrors, `Page errors: ${pageErrors.join('; ')}`).toHaveLength(0);
   });

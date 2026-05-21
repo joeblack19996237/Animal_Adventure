@@ -1523,6 +1523,33 @@ def test_evaluate_prompt_includes_score_threshold(sample_config, monkeypatch):
     assert "Minimum score threshold: 90%" in captured[0]
 
 
+def test_evaluate_prompt_requires_game_evidence_sections(sample_config, monkeypatch):
+    captured = []
+
+    def mock_call(prompt, *args, **kwargs):
+        captured.append(prompt)
+        return {
+            "signal": {"iteration": 1, "verdict": "APPROVE", "issues": []},
+            "usage": {},
+        }
+
+    monkeypatch.setattr(agents, "call_claude", mock_call)
+
+    agents.evaluate(
+        "model",
+        {"evaluate": {"app_type": "game"}, "total_phases": 1},
+        1,
+        "spec",
+        sample_config,
+    )
+
+    assert "Spec Acceptance Checklist" in captured[0]
+    assert "Command Evidence" in captured[0]
+    assert "Code Quality Audit" in captured[0]
+    assert "webkit-ipad" in captured[0]
+    assert "skipped WebKit-iPad checks do not count as verified" in captured[0]
+
+
 def test_evaluate_injects_spec_sections_paths(sample_config, monkeypatch):
     signal = {
         "status": "complete",

@@ -162,9 +162,7 @@ class QuestService:
             return {"type": "quest_not_found"}
         now_utc = datetime.now(timezone.utc)
         now_iso = now_utc.isoformat()
-        expires_at = (
-            now_utc + timedelta(seconds=int(quest_cfg["time_limit_seconds"]))
-        ).isoformat()
+        expires_at = (now_utc + timedelta(seconds=int(quest_cfg["time_limit_seconds"]))).isoformat()
 
         conn = connect_db(self._db_path)
         try:
@@ -216,7 +214,6 @@ class QuestService:
         quest_instance_id: int,
         item_id: str,
     ) -> dict | None:
-        """Executes pickup DB writes. Returns None on success or an error dict (no writes committed)."""
         count = conn.execute(
             "SELECT COUNT(*) FROM player_inventory WHERE player_id=? AND slot_type='inventory'",
             (player_id,),
@@ -333,11 +330,7 @@ class QuestService:
             quest_id,
             quest_instance_id,
         )
-        return {
-            "type": "quest_failed",
-            "quest_id": quest_id,
-            "cooldown_until": cooldown_until,
-        }
+        return {"type": "quest_failed", "quest_id": quest_id, "cooldown_until": cooldown_until}
 
     def turn_in_quest(
         self, player_id: str, npc_id: str, player_x: float, player_y: float
@@ -493,9 +486,7 @@ class QuestService:
             raise
         finally:
             conn.close()
-        _emit_quest_complete(
-            logger, player_id, quest_id, quest_instance_id, coins_awarded
-        )
+        _emit_quest_complete(logger, player_id, quest_id, quest_instance_id, coins_awarded)
         return {
             "type": "quest_completed",
             "quest_id": quest_id,

@@ -126,6 +126,40 @@ async function waitForReconnect(
   ]);
 }
 
+async function dispatchJoystickTouchPointer(
+  page: Page,
+  selector: string,
+  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  point: { x: number; y: number },
+): Promise<void> {
+  await page.locator(selector).evaluate(
+    (el, event) => {
+      const target = el as HTMLElement;
+      const originalSetPointerCapture = target.setPointerCapture;
+      if (event.type === 'pointerdown') {
+        target.setPointerCapture = () => undefined;
+      }
+      try {
+        target.dispatchEvent(
+          new PointerEvent(event.type, {
+            bubbles: true,
+            cancelable: true,
+            pointerId: 11,
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: event.point.x,
+            clientY: event.point.y,
+            buttons: event.type === 'pointerup' ? 0 : 1,
+          }),
+        );
+      } finally {
+        target.setPointerCapture = originalSetPointerCapture;
+      }
+    },
+    { type, point },
+  );
+}
+
 test.describe('@phase11-smoke', () => {
   test(
     'reconnect_receives_state_sync: reconnect after forced disconnect delivers state_sync' +
@@ -190,8 +224,20 @@ test.describe('@phase11-smoke', () => {
         if (msg.type() === 'error') pageErrors.push(msg.text());
       });
 
+      const playerMoveMessages: Array<Record<string, unknown>> = [];
       await page.routeWebSocket(WS_GLOB, (ws) => {
         ws.send(JSON.stringify(makeStateSync(25, '2026-05-18T10:00:00Z')));
+        ws.onMessage((msg) => {
+          try {
+            const raw = typeof msg === 'string' ? msg : (msg as Buffer).toString('utf-8');
+            const parsed = JSON.parse(raw) as Record<string, unknown>;
+            if (parsed['type'] === 'player_move') {
+              playerMoveMessages.push(parsed);
+            }
+          } catch {
+            // ignore non-JSON messages
+          }
+        });
       });
 
       await setupMockRoutes(page);
@@ -206,13 +252,32 @@ test.describe('@phase11-smoke', () => {
       expect(box.width, 'joystick width must be non-zero').toBeGreaterThan(0);
       expect(box.height, 'joystick height must be non-zero').toBeGreaterThan(0);
 
-      // Dispatch synthetic touch events directly on the joystick element.
-      // Avoids new Touch() which Playwright's WebKit build rejects.
-      await joystickBase.dispatchEvent('touchstart', { bubbles: true, cancelable: true });
-      await page.waitForTimeout(100);
-      await joystickBase.dispatchEvent('touchmove', { bubbles: true, cancelable: true });
-      await page.waitForTimeout(100);
-      await joystickBase.dispatchEvent('touchend', { bubbles: true, cancelable: true });
+      const centerX = box.x + box.width / 2;
+      const centerY = box.y + box.height / 2;
+      const moveX = centerX + box.width * 0.4;
+
+      await dispatchJoystickTouchPointer(page, '#joystick-base', 'pointerdown', {
+        x: centerX,
+        y: centerY,
+      });
+      await dispatchJoystickTouchPointer(page, '#joystick-base', 'pointermove', {
+        x: moveX,
+        y: centerY,
+      });
+      await page.waitForTimeout(500);
+      await dispatchJoystickTouchPointer(page, '#joystick-base', 'pointerup', {
+        x: moveX,
+        y: centerY,
+      });
+
+      const moveMsgs = playerMoveMessages.filter((m) => typeof m['x'] === 'number');
+      expect(
+        moveMsgs.length,
+        'expected at least one player_move message after WebKit touch joystick input',
+      ).toBeGreaterThan(0);
+      const lastMove = moveMsgs[moveMsgs.length - 1];
+      expect(lastMove['x'], 'touch joystick should increase player x').toBeGreaterThan(2715);
+      expect(lastMove['direction'], 'touch joystick should move right').toBe('right');
 
       expect(
         pageErrors,
