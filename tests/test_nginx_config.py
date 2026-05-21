@@ -46,6 +46,14 @@ def test_nginx_template_listens_on_port_8080() -> None:
     assert "listen 8080" in content, "Nginx config must listen on port 8080 by default"
 
 
+def test_nginx_template_listens_on_ipv6_loopback_port_8080() -> None:
+    content = TEMPLATE_PATH.read_text(encoding="utf-8")
+    assert "listen [::]:8080" in content, (
+        "Nginx config must also listen on IPv6 port 8080 because localhost may "
+        "resolve to ::1 in browsers and Playwright"
+    )
+
+
 def test_nginx_template_splits_built_and_game_assets() -> None:
     content = TEMPLATE_PATH.read_text(encoding="utf-8")
     assert "alias {{PROJECT_ROOT}}/dist/assets/;" in content, (

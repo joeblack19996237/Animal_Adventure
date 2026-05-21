@@ -129,6 +129,7 @@ def api_environment() -> dict[str, str]:
 
 def write_nginx_wrapper() -> Path:
     EVAL_DIR.mkdir(parents=True, exist_ok=True)
+    (EVAL_DIR / "logs").mkdir(parents=True, exist_ok=True)
     project_root = Path.cwd().resolve()
     ensure_project_nginx_config(project_root)
     nginx_root = _nginx_root()

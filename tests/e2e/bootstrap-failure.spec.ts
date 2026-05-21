@@ -103,13 +103,12 @@ test('bootstrap failure shows a blocking overlay element', async ({ page }) => {
   await page.goto('/');
   await completeLogin(page);
 
-  const overlay = page.locator('#bootstrap-error');
-  await expect(overlay, 'A blocking error overlay must be visible when bootstrap fails').toBeVisible({
+  const heading = page.getByRole('heading', { name: 'Configuration failed to load' });
+  await expect(heading, 'A blocking error overlay must be visible when bootstrap fails').toBeVisible({
     timeout: 10000,
   });
-  await expect(overlay).toContainText('Configuration failed to load');
-  await expect(overlay).toContainText('Bootstrap config unavailable');
-  await expect(overlay.getByRole('button', { name: 'Retry' })).toBeVisible();
+  await expect(page.getByText('Bootstrap config unavailable')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
   expect(webSocketAttempts(), 'Gameplay WebSocket must not open until bootstrap succeeds').toBe(0);
 });
 
@@ -124,7 +123,9 @@ test('bootstrap failure prevents shop button from being interactive', async ({ p
   await page.goto('/');
   await completeLogin(page);
 
-  await expect(page.locator('#bootstrap-error')).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('heading', { name: 'Configuration failed to load' })).toBeVisible({
+    timeout: 10000,
+  });
   await page.locator('#hud-shop').click({ timeout: 1000 }).catch(() => undefined);
   await expect(page.locator('#shop-panel')).toBeHidden();
 });

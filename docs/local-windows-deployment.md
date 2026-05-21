@@ -108,6 +108,7 @@ The template shape (from `deploy/nginx/animal-adventure.nginx.conf.template`):
 ```nginx
 server {
     listen 8080;
+    listen [::]:8080;
     server_name localhost;
 
     root {{PROJECT_ROOT}}/dist;
