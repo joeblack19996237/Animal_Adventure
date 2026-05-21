@@ -76,9 +76,9 @@ def test_post_name_only_unknown_player_returns_character_required(
     client: TestClient,
 ) -> None:
     resp = client.post("/api/v1/players", json={"name": "NewPlayer"})
-    assert resp.status_code == 200
+    assert resp.status_code == 409
     body = resp.json()
-    assert body.get("status") == "character_required"
+    assert body.get("code") == "character_required"
 
 
 def test_post_invalid_character_id_returns_400(client: TestClient) -> None:

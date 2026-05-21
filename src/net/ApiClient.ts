@@ -74,7 +74,10 @@ export class ApiClient {
       return { kind: 'error', message: 'Unexpected response format' };
     }
 
-    if (isObj(data) && data['detail'] === 'character_required') {
+    if (
+      isObj(data) &&
+      (data['detail'] === 'character_required' || data['code'] === 'character_required')
+    ) {
       return { kind: 'character_required' };
     }
 

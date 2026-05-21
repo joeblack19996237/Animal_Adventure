@@ -5,6 +5,7 @@ import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
@@ -12,14 +13,20 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from app.db import connect_db
 from app.logging_config import emit_bootstrap_failure as _emit_bootstrap_failure
 from app.logging_config import emit_duplicate_session as _emit_duplicate_session
-from app.services.world_service import is_in_world_bounds
+from app.services.inventory_service import InventoryService
+from app.services.progression_service import ProgressionService
+from app.services.quest_service import QuestService
+from app.services.shop_service import ShopService
+from app.services.world_service import WorldService
 from app.settings import Settings
+from app.ws_gameplay import handle_gameplay_message, send_json
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 _active_sessions: dict[str, WebSocket] = {}
+_world_service = WorldService()
 
 MAX_CLIENT_EVENT_BYTES = 4096
 
@@ -45,10 +52,16 @@ def get_ws_config_dir() -> Path:
     return Path("config")
 
 
-def _load_preset_phrases(config_dir: Path) -> dict[str, str]:
+@lru_cache(maxsize=8)
+def _load_preset_phrases_cached(config_dir_str: str) -> dict[str, str]:
+    config_dir = Path(config_dir_str)
     path = config_dir / "preset_phrases.json"
     phrases: list[dict] = json.loads(path.read_text(encoding="utf-8"))
     return {p["id"]: p["text"] for p in phrases}
+
+
+def _load_preset_phrases(config_dir: Path) -> dict[str, str]:
+    return _load_preset_phrases_cached(str(config_dir.resolve()))
 
 
 async def _broadcast_chat(player_id: str, phrase_id: str, message: str) -> None:
@@ -68,14 +81,11 @@ async def _broadcast_chat(player_id: str, phrase_id: str, message: str) -> None:
 
 
 async def _broadcast_state_update(
-    player_id: str, x: float, y: float, direction: str, client_tick: int
+    player_id: str, snapshot: dict, client_tick: int
 ) -> None:
+    snapshot["tick"] = client_tick
     msg = json.dumps(
-        {
-            "type": "state_update",
-            "tick": client_tick,
-            "players": {player_id: {"x": x, "y": y, "direction": direction}},
-        }
+        snapshot
     )
     for pid, ws in list(_active_sessions.items()):
         if pid != player_id:
@@ -161,18 +171,24 @@ def _fetch_quests_and_world_items(
         "FROM player_quests WHERE player_id = ?",
         (player_id,),
     ).fetchall()
-    world_items: list[dict] = []
-    for q in quest_rows:
-        if q[3] == "active":
-            wi_rows = conn.execute(
-                "SELECT id, item_id, x, y FROM world_item_instances "
-                "WHERE quest_instance_id = ? AND status = 'spawned'",
-                (q[0],),
-            ).fetchall()
-            for wi in wi_rows:
-                world_items.append(
-                    {"id": wi[0], "item_id": wi[1], "x": wi[2], "y": wi[3]}
-                )
+    wi_rows = conn.execute(
+        "SELECT wi.id, wi.item_id, wi.quest_instance_id, wi.x, wi.y, wi.status "
+        "FROM world_item_instances wi "
+        "JOIN player_quests pq ON wi.quest_instance_id = pq.id "
+        "WHERE pq.player_id = ? AND pq.status = 'active' AND wi.status = 'spawned'",
+        (player_id,),
+    ).fetchall()
+    world_items = [
+        {
+            "id": wi[0],
+            "item_id": wi[1],
+            "quest_instance_id": wi[2],
+            "x": wi[3],
+            "y": wi[4],
+            "status": wi[5],
+        }
+        for wi in wi_rows
+    ]
     return quest_rows, world_items
 
 
@@ -249,32 +265,38 @@ def _load_state_sync(db_path: Path, player_id: str) -> dict | None:
 
 
 async def _handle_messages(
-    websocket: WebSocket, player_id: str, phrase_lookup: dict[str, str]
+    websocket: WebSocket,
+    player_id: str,
+    phrase_lookup: dict[str, str],
+    db_path: Path,
+    config_dir: Path,
 ) -> None:
+    quest_service = QuestService(db_path=db_path, config_dir=config_dir)
+    shop_service = ShopService(db_path=db_path, config_dir=config_dir)
+    inventory_service = InventoryService(db_path=db_path, config_dir=config_dir)
+    progression_service = ProgressionService(db_path=db_path, config_dir=config_dir)
     try:
         while True:
             raw = await websocket.receive_text()
             msg, error_code = validate_client_event(raw)
             if error_code == "payload_too_large":
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "code": "payload_too_large",
-                            "message": "Payload exceeds maximum allowed size.",
-                        }
-                    )
+                await send_json(
+                    websocket,
+                    {
+                        "type": "error",
+                        "code": "payload_too_large",
+                        "message": "Payload exceeds maximum allowed size.",
+                    },
                 )
                 continue
             if error_code == "invalid_message":
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "code": "invalid_message",
-                            "message": "Message must be a valid JSON object.",
-                        }
-                    )
+                await send_json(
+                    websocket,
+                    {
+                        "type": "error",
+                        "code": "invalid_message",
+                        "message": "Message must be a valid JSON object.",
+                    },
                 )
                 continue
 
@@ -282,49 +304,39 @@ async def _handle_messages(
 
             body_player_id = msg.get("player_id")
             if body_player_id is not None and body_player_id != player_id:
-                await websocket.send_text(
-                    json.dumps(
-                        {
-                            "type": "error",
-                            "code": "identity_mismatch",
-                            "message": "Message player_id does not match connection identity.",
-                        }
-                    )
+                await send_json(
+                    websocket,
+                    {
+                        "type": "error",
+                        "code": "identity_mismatch",
+                        "message": "Message player_id does not match connection identity.",
+                    },
                 )
                 continue
 
-            if msg.get("type") == "player_move":
-                x = float(msg.get("x", 0.0))
-                y = float(msg.get("y", 0.0))
-                if not is_in_world_bounds(x, y):
-                    await websocket.send_text(
-                        json.dumps(
-                            {
-                                "type": "error",
-                                "code": "out_of_bounds",
-                                "message": "Movement coordinates are outside the world bounds.",
-                            }
-                        )
-                    )
-                    continue
-                await _broadcast_state_update(
-                    player_id,
-                    x,
-                    y,
-                    str(msg.get("direction", "down")),
-                    int(msg.get("client_tick", 0)),
-                )
-            elif msg.get("type") == "preset_chat":
+            if await handle_gameplay_message(
+                websocket,
+                player_id,
+                msg,
+                db_path,
+                quest_service,
+                shop_service,
+                inventory_service,
+                progression_service,
+                _world_service,
+                _broadcast_state_update,
+            ):
+                continue
+            if msg.get("type") == "preset_chat":
                 phrase_id = msg.get("phrase_id")
                 if not isinstance(phrase_id, str) or phrase_id not in phrase_lookup:
-                    await websocket.send_text(
-                        json.dumps(
-                            {
-                                "type": "error",
-                                "code": "invalid_message",
-                                "message": "Unknown or missing phrase_id.",
-                            }
-                        )
+                    await send_json(
+                        websocket,
+                        {
+                            "type": "error",
+                            "code": "invalid_message",
+                            "message": "Unknown or missing phrase_id.",
+                        },
                     )
                 else:
                     await _broadcast_chat(
@@ -377,10 +389,31 @@ async def websocket_endpoint(
             await websocket.close()
             return
 
-        phrase_lookup = _load_preset_phrases(config_dir)
+        try:
+            phrase_lookup = _load_preset_phrases(config_dir)
+        except Exception as exc:
+            _emit_bootstrap_failure(logger, player_id=player_id, error=str(exc))
+            await send_json(
+                websocket,
+                {
+                    "type": "error",
+                    "code": "config_unavailable",
+                    "message": "Preset chat configuration unavailable.",
+                },
+            )
+            await websocket.close()
+            return
+        player = state_sync["player"]
+        _world_service.register_player(
+            player_id,
+            float(player.get("x", 0.0)),
+            float(player.get("y", 0.0)),
+            str(player.get("direction", "down")),
+        )
         await websocket.send_text(json.dumps(state_sync))
-        await _handle_messages(websocket, player_id, phrase_lookup)
+        await _handle_messages(websocket, player_id, phrase_lookup, db_path, config_dir)
     finally:
         if _active_sessions.get(player_id) is websocket:
             _active_sessions.pop(player_id, None)
+            _world_service.unregister_player(player_id)
             await _broadcast_player_left(player_id)

@@ -90,6 +90,17 @@ def player_b(player_service: PlayerService) -> dict:
 
 
 class TestQuestOffer:
+    def test_offer_unknown_npc_returns_npc_not_found(
+        self, quest_service: QuestService, player_a: dict
+    ) -> None:
+        result = quest_service.offer_quest(
+            player_id=player_a["player_id"],
+            npc_id="missing-npc",
+            player_x=HOPPER_X,
+            player_y=HOPPER_Y,
+        )
+        assert result["type"] == "npc_not_found"
+
     def test_offer_returns_quest_offer_when_available(
         self, quest_service: QuestService, player_a: dict
     ) -> None:
@@ -203,6 +214,14 @@ class TestQuestOffer:
 
 
 class TestQuestAccept:
+    def test_accept_unknown_npc_returns_npc_not_found(
+        self, quest_service: QuestService, player_a: dict
+    ) -> None:
+        result = quest_service.accept_quest(
+            player_id=player_a["player_id"], npc_id="missing-npc"
+        )
+        assert result["type"] == "npc_not_found"
+
     def test_accept_creates_active_quest_row(
         self, quest_service: QuestService, player_a: dict, db_path: Path
     ) -> None:
@@ -446,6 +465,17 @@ def _accept_and_pickup_hopper(quest_service: QuestService, player_id: str) -> di
 
 
 class TestQuestTurnIn:
+    def test_turn_in_unknown_npc_returns_npc_not_found(
+        self, quest_service: QuestService, player_a: dict
+    ) -> None:
+        result = quest_service.turn_in_quest(
+            player_id=player_a["player_id"],
+            npc_id="missing-npc",
+            player_x=HOPPER_X,
+            player_y=HOPPER_Y,
+        )
+        assert result["type"] == "npc_not_found"
+
     def test_turn_in_returns_quest_completed(
         self, quest_service: QuestService, player_a: dict
     ) -> None:

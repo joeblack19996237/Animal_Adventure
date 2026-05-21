@@ -65,9 +65,18 @@ describe('ApiClient', () => {
       it('returns character_required when backend signals no player exists', async () => {
         const client = new ApiClient(
           'http://localhost:8000',
-          makeFetch(400, { detail: 'character_required' }),
+          makeFetch(409, { code: 'character_required', message: 'Choose a character' }),
         );
         const result = await client.login('NewPlayer');
+        expect(result.kind).toBe('character_required');
+      });
+
+      it('keeps compatibility with legacy character_required detail responses', async () => {
+        const client = new ApiClient(
+          'http://localhost:8000',
+          makeFetch(400, { detail: 'character_required' }),
+        );
+        const result = await client.login('LegacyNewPlayer');
         expect(result.kind).toBe('character_required');
       });
     });

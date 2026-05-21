@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.db import init_db
 from app.main import app
+from app.routes.logs import get_settings
 
 
 @pytest.fixture
@@ -17,8 +18,10 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
     db = tmp_path / "events.sqlite3"
     init_db(db)
     monkeypatch.setenv("DATABASE_PATH", str(db))
+    get_settings.cache_clear()
     with TestClient(app) as c:
         yield c
+    get_settings.cache_clear()
 
 
 def test_client_logging_config_route(client: TestClient) -> None:

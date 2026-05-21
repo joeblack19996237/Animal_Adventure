@@ -46,7 +46,13 @@ def post_players(
         return existing
 
     if body.character_id is None:
-        return {"status": "character_required"}
+        return JSONResponse(
+            status_code=409,
+            content={
+                "code": "character_required",
+                "message": "character_id is required to create a new player",
+            },
+        )
 
     try:
         return service.create_player(body.name, body.character_id)

@@ -11,6 +11,7 @@ from app.main import app
 from app.routes.players import get_player_service
 from app.services.player_service import PlayerService
 from app.ws_handler import get_ws_db_path
+from app.ws_handler import get_ws_config_dir
 
 _CONFIG_DIR = Path("config")
 
@@ -63,3 +64,22 @@ def test_ws_unknown_player_errors(client: TestClient) -> None:
     assert msg["type"] == "error"
     assert msg["code"] == "player_not_found"
     assert "message" in msg
+
+
+def test_ws_malformed_preset_config_returns_error(
+    client: TestClient, tmp_path: Path
+) -> None:
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    (cfg / "preset_phrases.json").write_text("{not-json", encoding="utf-8")
+    app.dependency_overrides[get_ws_config_dir] = lambda: cfg
+    resp = client.post(
+        "/api/v1/players", json={"name": "ConfigPlayer", "character_id": "penguin"}
+    )
+    player_id = resp.json()["player_id"]
+
+    with client.websocket_connect(f"/ws/{player_id}") as ws:
+        msg = ws.receive_json()
+
+    assert msg["type"] == "error"
+    assert msg["code"] == "config_unavailable"

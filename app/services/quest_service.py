@@ -34,6 +34,12 @@ class QuestService:
         )
         return {q["id"]: q for q in data}
 
+    def npc_id_for_quest(self, quest_id: str) -> str | None:
+        for npc_id, npc in self._npcs.items():
+            if npc.get("quest_id") == quest_id:
+                return npc_id
+        return None
+
     @staticmethod
     def _dist(x1: float, y1: float, x2: float, y2: float) -> float:
         return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
@@ -45,7 +51,9 @@ class QuestService:
         player_x: float,
         player_y: float,
     ) -> dict:
-        npc = self._npcs[npc_id]
+        npc = self._npcs.get(npc_id)
+        if npc is None:
+            return {"type": "npc_not_found"}
         if (
             self._dist(player_x, player_y, float(npc["x"]), float(npc["y"]))
             > npc["interaction_radius"]
@@ -76,7 +84,17 @@ class QuestService:
                 return {"type": "quest_locked"}
         finally:
             conn.close()
-        return {"type": "quest_offer", "quest_id": quest_id}
+        quest_cfg = self._quests.get(quest_id)
+        if quest_cfg is None:
+            return {"type": "quest_not_found"}
+        return {
+            "type": "quest_offer",
+            "npc_id": npc_id,
+            "quest_id": quest_id,
+            "title": str(quest_cfg.get("title", quest_id)),
+            "time_limit_seconds": int(quest_cfg.get("time_limit_seconds", 0)),
+            "rewards": quest_cfg.get("rewards", []),
+        }
 
     def _check_accept_guards(
         self, conn: sqlite3.Connection, player_id: str, npc_id: str
@@ -135,9 +153,13 @@ class QuestService:
         return world_items
 
     def accept_quest(self, player_id: str, npc_id: str) -> dict:
-        npc = self._npcs[npc_id]
+        npc = self._npcs.get(npc_id)
+        if npc is None:
+            return {"type": "npc_not_found"}
         quest_id = npc["quest_id"]
-        quest_cfg = self._quests[quest_id]
+        quest_cfg = self._quests.get(quest_id)
+        if quest_cfg is None:
+            return {"type": "quest_not_found"}
         now_utc = datetime.now(timezone.utc)
         now_iso = now_utc.isoformat()
         expires_at = (
@@ -181,6 +203,7 @@ class QuestService:
         return {
             "type": "quest_started",
             "quest_instance_id": quest_instance_id,
+            "quest_id": quest_id,
             "expires_at": expires_at,
             "world_items": world_items,
         }
@@ -245,7 +268,9 @@ class QuestService:
             return {"type": "item_not_found"}
         item_id, item_x, item_y = row[0], float(row[1]), float(row[2])
         quest_instance_id, quest_id, npc_id, expires_at = row[4], row[6], row[7], row[8]
-        quest_cfg = self._quests[quest_id]
+        quest_cfg = self._quests.get(quest_id)
+        if quest_cfg is None:
+            return {"type": "quest_not_found"}
         if self._dist(player_x, player_y, item_x, item_y) > float(
             quest_cfg["item_spawn"]["pickup_radius"]
         ):
@@ -270,7 +295,7 @@ class QuestService:
             raise
         finally:
             conn.close()
-        return {"type": "item_picked_up", "item_id": item_id}
+        return {"type": "item_picked_up", "quest_id": quest_id, "item_id": item_id}
 
     def _apply_failure(
         self,
@@ -308,12 +333,18 @@ class QuestService:
             quest_id,
             quest_instance_id,
         )
-        return {"type": "quest_failed"}
+        return {
+            "type": "quest_failed",
+            "quest_id": quest_id,
+            "cooldown_until": cooldown_until,
+        }
 
     def turn_in_quest(
         self, player_id: str, npc_id: str, player_x: float, player_y: float
     ) -> dict:
-        npc = self._npcs[npc_id]
+        npc = self._npcs.get(npc_id)
+        if npc is None:
+            return {"type": "npc_not_found"}
         if (
             self._dist(player_x, player_y, float(npc["x"]), float(npc["y"]))
             > npc["interaction_radius"]
@@ -335,6 +366,8 @@ class QuestService:
         if status == "completed":
             return {
                 "type": "quest_completed",
+                "quest_id": quest_id,
+                "coins_awarded": 0,
                 "rewards_granted_json": json.loads(rewards_str),
             }
         if status != "active":
@@ -423,7 +456,9 @@ class QuestService:
         npc_id: str,
         now_utc: datetime,
     ) -> dict:
-        quest_cfg = self._quests[quest_id]
+        quest_cfg = self._quests.get(quest_id)
+        if quest_cfg is None:
+            return {"type": "quest_not_found"}
         cooldown_secs = int(quest_cfg.get("completion_cooldown_seconds", 3600))
         cooldown_until = (now_utc + timedelta(seconds=cooldown_secs)).isoformat()
         rewards: list[dict] = quest_cfg.get("rewards", [])
@@ -448,6 +483,8 @@ class QuestService:
                 conn.rollback()
                 return {
                     "type": "quest_completed",
+                    "quest_id": quest_id,
+                    "coins_awarded": 0,
                     "rewards_granted_json": already_granted,
                 }
             conn.commit()
@@ -461,6 +498,7 @@ class QuestService:
         )
         return {
             "type": "quest_completed",
+            "quest_id": quest_id,
             "coins_awarded": coins_awarded,
             "coins_balance": coins_balance,
             "rewards_granted_json": rewards,
