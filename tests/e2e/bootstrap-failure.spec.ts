@@ -57,6 +57,35 @@ async function mockWebSocket(page: Page): Promise<void> {
   });
 }
 
+async function countWebSocketAttempts(page: Page): Promise<() => number> {
+  let attempts = 0;
+  await page.routeWebSocket(WS_GLOB, (ws) => {
+    attempts++;
+    ws.send(
+      JSON.stringify({
+        type: 'state_sync',
+        server_time: new Date().toISOString(),
+        player: {
+          id: PLAYER_ID,
+          name: PLAYER_NAME,
+          x: 160,
+          y: 160,
+          direction: 'down',
+          coins: 0,
+          level: 1,
+        },
+        progress: {},
+        inventory: [],
+        equipment: [],
+        quests: [],
+        online_players: {},
+        world_items: [],
+      }),
+    );
+  });
+  return () => attempts;
+}
+
 async function completeLogin(page: Page): Promise<void> {
   await page.getByPlaceholder('Enter your name').fill(PLAYER_NAME);
   await page.getByRole('button', { name: 'Play' }).click();
@@ -65,7 +94,7 @@ async function completeLogin(page: Page): Promise<void> {
 
 test('bootstrap failure shows a blocking overlay element', async ({ page }) => {
   await mockPlayersApi(page);
-  await mockWebSocket(page);
+  const webSocketAttempts = await countWebSocketAttempts(page);
 
   await page.route(BOOTSTRAP_API, (route) => {
     route.fulfill({ status: 500, body: 'Internal Server Error' });
@@ -74,13 +103,14 @@ test('bootstrap failure shows a blocking overlay element', async ({ page }) => {
   await page.goto('/');
   await completeLogin(page);
 
-  const overlay = page.getByTestId('bootstrap-error');
+  const overlay = page.locator('#bootstrap-error');
   await expect(overlay, 'A blocking error overlay must be visible when bootstrap fails').toBeVisible({
     timeout: 10000,
   });
   await expect(overlay).toContainText('Configuration failed to load');
   await expect(overlay).toContainText('Bootstrap config unavailable');
   await expect(overlay.getByRole('button', { name: 'Retry' })).toBeVisible();
+  expect(webSocketAttempts(), 'Gameplay WebSocket must not open until bootstrap succeeds').toBe(0);
 });
 
 test('bootstrap failure prevents shop button from being interactive', async ({ page }) => {
@@ -94,7 +124,7 @@ test('bootstrap failure prevents shop button from being interactive', async ({ p
   await page.goto('/');
   await completeLogin(page);
 
-  await expect(page.getByTestId('bootstrap-error')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('#bootstrap-error')).toBeVisible({ timeout: 10000 });
   await page.locator('#hud-shop').click({ timeout: 1000 }).catch(() => undefined);
   await expect(page.locator('#shop-panel')).toBeHidden();
 });

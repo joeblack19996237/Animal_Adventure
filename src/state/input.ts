@@ -20,6 +20,11 @@ export interface MovementVector {
   readonly dy: number;
 }
 
+export interface MutableMovementVector {
+  dx: number;
+  dy: number;
+}
+
 export function createInputState(): InputState {
   return {
     keysDown: new Set<string>(),
@@ -40,8 +45,14 @@ export function applyKeyUp(state: InputState, key: string): InputState {
 }
 
 export function getMovementVector(state: InputState): MovementVector {
+  return fillMovementVector(state, { dx: 0, dy: 0 });
+}
+
+export function fillMovementVector(state: InputState, target: MutableMovementVector): MutableMovementVector {
   if (state.joystick.active) {
-    return { dx: state.joystick.dx, dy: state.joystick.dy };
+    target.dx = state.joystick.dx;
+    target.dy = state.joystick.dy;
+    return target;
   }
   let dx = 0;
   let dy = 0;
@@ -49,7 +60,9 @@ export function getMovementVector(state: InputState): MovementVector {
   if (state.keysDown.has('d') || state.keysDown.has('ArrowRight')) dx += 1;
   if (state.keysDown.has('w') || state.keysDown.has('ArrowUp')) dy -= 1;
   if (state.keysDown.has('s') || state.keysDown.has('ArrowDown')) dy += 1;
-  return { dx, dy };
+  target.dx = dx;
+  target.dy = dy;
+  return target;
 }
 
 export function createJoystickState(): JoystickState {

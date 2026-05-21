@@ -20,6 +20,7 @@ import { BootstrapService } from '../services/BootstrapService';
 import { GameDomController } from './game/GameDomController';
 import { publishGameStore } from './game/GameStoreDebug';
 import { JoystickController } from './game/JoystickController';
+import { PlayerMovementController } from './game/PlayerMovementController';
 import {
   formatCountdown,
   isItemRecord,
@@ -39,7 +40,6 @@ import {
   applyKeyDown,
   applyKeyUp,
   createInputState,
-  getMovementVector,
   type InputState,
 } from '../state/input';
 
@@ -50,13 +50,9 @@ const JOYSTICK_RADIUS = 48;
 export class GameScene extends Phaser.Scene {
   private wsClient: WSClient | null = null;
   private playerId = '';
-  private playerX = 0;
-  private playerY = 0;
-  private playerDirection = 'down';
-  private clientTick = 0;
   private sceneReady = false;
-  private stateSyncReceived = false;
   private inputState: InputState = createInputState();
+  private readonly movement = new PlayerMovementController(PLAYER_SPEED);
   private quests: QuestRecord[] = [];
   private worldItems: WorldItemRecord[] = [];
   private inventory: InventoryRecord[] = [];
@@ -115,7 +111,6 @@ export class GameScene extends Phaser.Scene {
     this.dom.create();
     this.registerGameEventListeners();
     this.sceneReady = true;
-    this.connectWebSocket();
     this.updateGameStore();
     void this.loadBootstrapAsync();
   }
@@ -139,12 +134,16 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.updateShopPanel();
+    this.connectWebSocket();
+    this.updateGameStore();
   }
 
   private connectWebSocket(): void {
     const storedId = localStorage.getItem(PLAYER_ID_KEY);
     if (storedId === null) return;
+    if (this.wsClient !== null) return;
     this.playerId = storedId;
+    this.movement.setPlayerId(storedId);
     this.wsClient = new WSClient({
       playerId: this.playerId,
       onMessage: (msg) => this.onWsMessage(msg),
@@ -169,12 +168,9 @@ export class GameScene extends Phaser.Scene {
   private handleStateSync(msg: StateSyncMsg): void {
     this.serverTimeOffsetMs = Date.now() - new Date(msg.server_time).getTime();
     const p = msg.player;
-    if (typeof p['x'] === 'number') this.playerX = p['x'];
-    if (typeof p['y'] === 'number') this.playerY = p['y'];
-    if (typeof p['direction'] === 'string') this.playerDirection = p['direction'];
+    this.movement.applyServerSnapshot({ x: p['x'], y: p['y'], direction: p['direction'] });
     if (typeof p['coins'] === 'number') this.coins = p['coins'];
     if (typeof p['level'] === 'number') this.level = p['level'];
-    this.stateSyncReceived = true;
 
     this.quests = (msg.quests as unknown[]).map(toQuestRecord).filter((q): q is QuestRecord => q !== null);
     this.worldItems = (msg.world_items as unknown[]).map(toWorldItemRecord).filter((w): w is WorldItemRecord => w !== null);
@@ -331,8 +327,8 @@ export class GameScene extends Phaser.Scene {
       quest_id: questId,
       item_id: itemId,
       item_instance_id: worldItem?.id ?? itemId,
-      x: this.playerX,
-      y: this.playerY,
+      x: this.movement.getX(),
+      y: this.movement.getY(),
     });
   }
 
@@ -409,7 +405,7 @@ export class GameScene extends Phaser.Scene {
   private updateGameStore(): void {
     publishGameStore({
       ready: this.sceneReady,
-      stateSyncReceived: this.stateSyncReceived,
+      stateSyncReceived: this.movement.hasStateSyncReceived(),
       wsOpen: this.wsClient?.isOpen() ?? false,
       quests: this.quests.slice(),
       worldItems: this.worldItems.slice(),
@@ -454,32 +450,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    if (this.wsClient === null || !this.stateSyncReceived) return;
-    const vector = getMovementVector(this.inputState);
-    if (vector.dx === 0 && vector.dy === 0) return;
-    const magnitude = Math.sqrt(vector.dx * vector.dx + vector.dy * vector.dy);
-    const dx = magnitude > 1 ? vector.dx / magnitude : vector.dx;
-    const dy = magnitude > 1 ? vector.dy / magnitude : vector.dy;
-
-    const dt = delta / 1000;
-    this.playerX += dx * PLAYER_SPEED * dt;
-    this.playerY += dy * PLAYER_SPEED * dt;
-    this.playerDirection = this.resolveDirection(dx, dy);
-    this.clientTick++;
-
-    this.wsClient.sendMove({
-      type: 'player_move',
-      player_id: this.playerId,
-      x: this.playerX,
-      y: this.playerY,
-      direction: this.playerDirection,
-      client_tick: this.clientTick,
-    });
-  }
-
-  private resolveDirection(dx: number, dy: number): string {
-    if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
-    return dy >= 0 ? 'down' : 'up';
+    this.movement.tick(delta, this.inputState, this.wsClient);
   }
 
   shutdown(): void {
