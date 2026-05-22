@@ -36,6 +36,29 @@ def test_rejects_out_of_bounds_movement(
     assert result == MoveStatus.OUT_OF_BOUNDS
 
 
+@pytest.mark.parametrize(
+    "x,y",
+    [
+        (520.0, 3200.0),
+        (3310.0, 4860.0),
+        (420.0, 5400.0),
+        (3150.0, 3620.0),
+    ],
+)
+def test_rejects_blocked_collision_movement(
+    world: WorldService, x: float, y: float
+) -> None:
+    result = world.apply_move("p1", x, y, "down", now=1000.0)
+    assert result == MoveStatus.COLLISION_BLOCKED
+
+
+def test_collision_blocked_move_does_not_update_position(world: WorldService) -> None:
+    world.apply_move("p1", 520.0, 3200.0, "left", now=1000.0)
+    pos = world.get_online_positions()
+    assert pos["p1"]["x"] == 2715.0
+    assert pos["p1"]["y"] == 3620.0
+
+
 def test_boundary_coords_are_accepted(world: WorldService) -> None:
     assert world.apply_move("p1", 0.0, 0.0, "up", now=1000.0) == MoveStatus.ACCEPTED
     assert (

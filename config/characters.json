@@ -54,11 +54,39 @@
         "back": "character_cat_snowman_stand_back"
       },
       "walk": {
-        "front": "character_cat_snowman_walk_front",
-        "back": "character_cat_snowman_stand_back",
-        "left": "character_cat_snowman_walk_side",
-        "right": "character_cat_snowman_walk_side",
-        "right_mirror": true
+        "front": [
+          "character_cat_snowman_walk_front_1",
+          "character_cat_snowman_walk_front_2",
+          "character_cat_snowman_walk_front_3",
+          "character_cat_snowman_walk_front_4",
+          "character_cat_snowman_walk_front_5",
+          "character_cat_snowman_walk_front_6"
+        ],
+        "back": [
+          "character_cat_snowman_walk_back_1",
+          "character_cat_snowman_walk_back_2",
+          "character_cat_snowman_walk_back_3",
+          "character_cat_snowman_walk_back_4",
+          "character_cat_snowman_walk_back_5",
+          "character_cat_snowman_walk_back_6"
+        ],
+        "left": [
+          "character_cat_snowman_walk_left_1",
+          "character_cat_snowman_walk_left_2",
+          "character_cat_snowman_walk_left_3",
+          "character_cat_snowman_walk_left_4",
+          "character_cat_snowman_walk_left_5",
+          "character_cat_snowman_walk_left_6"
+        ],
+        "right": [
+          "character_cat_snowman_walk_right_1",
+          "character_cat_snowman_walk_right_2",
+          "character_cat_snowman_walk_right_3",
+          "character_cat_snowman_walk_right_4",
+          "character_cat_snowman_walk_right_5",
+          "character_cat_snowman_walk_right_6"
+        ],
+        "right_mirror": false
       }
     }
   }

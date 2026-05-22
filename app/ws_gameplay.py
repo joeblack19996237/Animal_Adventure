@@ -157,6 +157,16 @@ async def _handle_player_move(
             },
         )
         return
+    if status == MoveStatus.COLLISION_BLOCKED:
+        await send_json(
+            websocket,
+            {
+                "type": "error",
+                "code": "collision_blocked",
+                "message": "Movement coordinates are blocked by world collision.",
+            },
+        )
+        return
     if status == MoveStatus.RATE_LIMITED:
         return
     await broadcast_state_update(

@@ -318,7 +318,7 @@ test.describe('e2e_new_player_reaches_l3', () => {
       const questDialog = page.locator('#quest-dialog, [data-testid="quest-dialog"], [data-ui="quest"]');
       await expect(questDialog).toBeVisible({ timeout: 8000 });
       const acceptBtn = questDialog.locator('button', { hasText: /accept/i });
-      await expect(acceptBtn).toBeVisible({ timeout: 5000 });
+      await expect(acceptBtn).toBeVisible({ timeout: 15000 });
       await acceptBtn.click();
 
       const questActive = page.locator(
@@ -358,7 +358,7 @@ test.describe('e2e_new_player_reaches_l3', () => {
 
       await expect(questDialog).toBeVisible({ timeout: 8000 });
       const acceptBtn2 = questDialog.locator('button', { hasText: /accept/i });
-      await expect(acceptBtn2).toBeVisible({ timeout: 5000 });
+      await expect(acceptBtn2).toBeVisible({ timeout: 15000 });
       await acceptBtn2.click();
 
       await expect(questActive).toBeVisible({ timeout: 8000 });

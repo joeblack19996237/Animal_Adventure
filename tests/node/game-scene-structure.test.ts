@@ -18,6 +18,27 @@ describe('game scene movement structure', () => {
     expect(updateMatch?.[1]).not.toContain('sendMove');
     expect(source).not.toMatch(/connectWebSocket\(\);\s*\n\s*this\.updateGameStore\(\);\s*\n\s*void this\.loadBootstrapAsync\(\);/);
   });
+
+  it('preloads only initial map tiles instead of all map tiles', () => {
+    const source = readFileSync(join(process.cwd(), 'src/scenes/GameScene.ts'), 'utf-8');
+    expect(source).toContain('preloadInitialMapTiles(this, MAP_TILE_MANIFEST);');
+    expect(source).not.toContain('buildMapTileLoadList');
+  });
+
+  it('uses responsive camera zoom and removes NPC text labels from world rendering', () => {
+    const sceneSource = readFileSync(join(process.cwd(), 'src/scenes/GameScene.ts'), 'utf-8');
+    const rendererSource = readFileSync(join(process.cwd(), 'src/scenes/game/WorldRenderer.ts'), 'utf-8');
+    expect(sceneSource).toContain('this.cameras.main.setZoom(chooseCameraZoom());');
+    expect(rendererSource).not.toContain('.text(');
+    expect(rendererSource).not.toContain('E / Click');
+  });
+
+  it('loads background music and registers automatic NPC proximity triggers', () => {
+    const source = readFileSync(join(process.cwd(), 'src/scenes/GameScene.ts'), 'utf-8');
+    expect(source).toContain('loadBackgroundMusic(this);');
+    expect(source).toContain('new BackgroundMusicController(this)');
+    expect(source).toContain('this.npcAutoTrigger.tick(');
+  });
 });
 
 describe('PlayerMovementController', () => {
@@ -30,6 +51,7 @@ describe('PlayerMovementController', () => {
     controller.tick(1000, input, { sendMove: (msg) => sent.push(msg) });
 
     expect(sent).toHaveLength(0);
+    expect(controller.isMoving()).toBe(false);
   });
 
   it('predicts keyboard movement and sends the player_move payload after state_sync', () => {
@@ -51,6 +73,7 @@ describe('PlayerMovementController', () => {
         client_tick: 1,
       },
     ]);
+    expect(controller.isMoving()).toBe(true);
   });
 
   it('normalizes diagonal joystick movement', () => {
@@ -65,5 +88,46 @@ describe('PlayerMovementController', () => {
     expect(sent[0]['x']).toBeCloseTo(212.132, 3);
     expect(sent[0]['y']).toBeCloseTo(212.132, 3);
     expect(sent[0]['direction']).toBe('right');
+  });
+
+  it('moves toward a tap target when no keyboard or joystick input is active', () => {
+    const sent: Record<string, unknown>[] = [];
+    const controller = new PlayerMovementController(300);
+    controller.setPlayerId('p1');
+    controller.applyServerSnapshot({ x: 100, y: 100, direction: 'down' });
+    controller.setMoveTarget(400, 100);
+
+    controller.tick(1000, createInputState(), { sendMove: (msg) => sent.push(msg) });
+
+    expect(sent[0]).toMatchObject({
+      type: 'player_move',
+      player_id: 'p1',
+      x: 400,
+      y: 100,
+      direction: 'right',
+    });
+  });
+
+  it('does not send movement when the predicted position is blocked', () => {
+    const sent: Record<string, unknown>[] = [];
+    const controller = new PlayerMovementController(300, 38, () => true);
+    controller.setPlayerId('p1');
+    controller.applyServerSnapshot({ x: 100, y: 100, direction: 'down' });
+    controller.setMoveTarget(400, 100);
+
+    controller.tick(1000, createInputState(), { sendMove: (msg) => sent.push(msg) });
+
+    expect(sent).toHaveLength(0);
+    expect(controller.isMoving()).toBe(false);
+  });
+
+  it('reports idle after a tick with no movement vector', () => {
+    const controller = new PlayerMovementController(300);
+    controller.setPlayerId('p1');
+    controller.applyServerSnapshot({ x: 100, y: 100, direction: 'down' });
+
+    controller.tick(1000, createInputState(), { sendMove: () => undefined });
+
+    expect(controller.isMoving()).toBe(false);
   });
 });

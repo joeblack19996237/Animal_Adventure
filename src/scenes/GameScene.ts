@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS } from './sceneKeys';
-import { buildMapTileLoadList } from '../assets/loader';
 import type { MapTileManifest } from '../assets/loader';
 import mapTilesJson from '../../config/map_tiles.json';
 import { WSClient } from '../net/WSClient';
@@ -17,12 +16,19 @@ import {
   type LevelUpMsg,
 } from '../net/protocol';
 import { BootstrapService } from '../services/BootstrapService';
+import { BackgroundMusicController, loadBackgroundMusic } from './game/BackgroundMusicController';
+import { chooseCameraZoom } from './game/CameraViewport';
 import { GameDomController } from './game/GameDomController';
 import { publishGameStore } from './game/GameStoreDebug';
 import { JoystickController } from './game/JoystickController';
+import { MapTileRenderer, preloadInitialMapTiles } from './game/MapTileRenderer';
+import { NpcAutoTriggerController } from './game/NpcAutoTriggerController';
 import { PlayerMovementController } from './game/PlayerMovementController';
+import { QuestTimerController } from './game/QuestTimerController';
+import { findNearestNpc, findNearestWorldItem } from './game/WorldInteraction';
+import { WorldRenderer, loadWorldTextures } from './game/WorldRenderer';
+import { isMovementBlocked } from './game/WorldCollision';
 import {
-  formatCountdown,
   isItemRecord,
   isShopBootstrapItem,
   toInventoryRecord,
@@ -46,13 +52,18 @@ import {
 const MAP_TILE_MANIFEST: MapTileManifest = mapTilesJson;
 const PLAYER_ID_KEY = 'animal_adventure_player_id';
 const PLAYER_SPEED = 300;
+const PLAYER_COLLISION_RADIUS = 38;
 const JOYSTICK_RADIUS = 48;
 export class GameScene extends Phaser.Scene {
   private wsClient: WSClient | null = null;
   private playerId = '';
   private sceneReady = false;
   private inputState: InputState = createInputState();
-  private readonly movement = new PlayerMovementController(PLAYER_SPEED);
+  private readonly movement = new PlayerMovementController(
+    PLAYER_SPEED,
+    PLAYER_COLLISION_RADIUS,
+    (x, y, radius) => isMovementBlocked(x, y, radius),
+  );
   private quests: QuestRecord[] = [];
   private worldItems: WorldItemRecord[] = [];
   private inventory: InventoryRecord[] = [];
@@ -63,12 +74,18 @@ export class GameScene extends Phaser.Scene {
   private pendingQuestOffer: QuestOffer | null = null;
   private activeQuestId: string | null = null;
   private completedQuestIds: Set<string> = new Set();
-  private questDeadlineMs: number | null = null;
-  private questTimerInterval: ReturnType<typeof setInterval> | null = null;
   private shopBootstrapItems: ShopBootstrapItem[] = [];
   private consumableItemIds: Set<string> = new Set();
   private dom: GameDomController;
   private joystick: JoystickController;
+  private mapRenderer: MapTileRenderer | null = null;
+  private worldRenderer: WorldRenderer | null = null;
+  private music: BackgroundMusicController | null = null;
+  private readonly npcAutoTrigger = new NpcAutoTriggerController();
+  private readonly questTimer = new QuestTimerController(
+    (text, ratio) => this.dom.showQuestTimer(text, ratio),
+    () => this.dom.hideQuestTimer(),
+  );
   private boundNpcInteract: ((e: Event) => void) | null = null;
   private boundQuestTurnIn: ((e: Event) => void) | null = null;
   private boundItemPickup: ((e: Event) => void) | null = null;
@@ -98,17 +115,20 @@ export class GameScene extends Phaser.Scene {
     );
   }
   preload(): void {
-    for (const entry of buildMapTileLoadList(MAP_TILE_MANIFEST)) {
-      this.load.image(entry.key, entry.url);
-    }
+    preloadInitialMapTiles(this, MAP_TILE_MANIFEST);
+    loadWorldTextures(this);
+    loadBackgroundMusic(this);
   }
   create(): void {
-    for (const tile of MAP_TILE_MANIFEST.tiles) {
-      this.add.image(tile.x + tile.width / 2, tile.y + tile.height / 2, tile.id);
-    }
+    this.mapRenderer = new MapTileRenderer(this, MAP_TILE_MANIFEST);
+    this.mapRenderer.renderLoadedTiles();
     this.cameras.main.setBounds(0, 0, MAP_TILE_MANIFEST.map_width, MAP_TILE_MANIFEST.map_height);
+    this.cameras.main.setZoom(chooseCameraZoom());
     this.joystick.create();
+    this.worldRenderer = new WorldRenderer(this);
+    this.worldRenderer.createNpcs((npcId) => this.sendNpcInteract(npcId));
     this.dom.create();
+    this.music = new BackgroundMusicController(this);
     this.registerGameEventListeners();
     this.sceneReady = true;
     this.updateGameStore();
@@ -169,6 +189,8 @@ export class GameScene extends Phaser.Scene {
     this.serverTimeOffsetMs = Date.now() - new Date(msg.server_time).getTime();
     const p = msg.player;
     this.movement.applyServerSnapshot({ x: p['x'], y: p['y'], direction: p['direction'] });
+    this.mapRenderer?.ensureTilesAround(this.movement.getX(), this.movement.getY());
+    this.worldRenderer?.updatePlayerFromServer(p);
     if (typeof p['coins'] === 'number') this.coins = p['coins'];
     if (typeof p['level'] === 'number') this.level = p['level'];
 
@@ -184,10 +206,10 @@ export class GameScene extends Phaser.Scene {
     const activeQuest = this.quests.find((q) => q.status === 'active');
     if (activeQuest !== undefined && activeQuest.expires_at !== null) {
       this.activeQuestId = activeQuest.quest_id;
-      this.startQuestTimer(activeQuest.expires_at, msg.server_time);
+      this.questTimer.start(activeQuest.expires_at, msg.server_time, this.serverTimeOffsetMs);
     } else {
       if (activeQuest === undefined) this.activeQuestId = null;
-      this.stopQuestTimer();
+      this.questTimer.stop();
     }
 
     const failedQuest = this.quests.find((q) => q.status === 'failed' && q.cooldown_until !== null);
@@ -200,6 +222,7 @@ export class GameScene extends Phaser.Scene {
     this.updateCoinsDisplay();
     this.updateLevelDisplay();
     this.updateInventoryPanel();
+    this.renderWorldItems();
     this.updateGameStore();
   }
 
@@ -216,9 +239,10 @@ export class GameScene extends Phaser.Scene {
   private handleQuestStarted(msg: QuestStartedMsg): void {
     this.activeQuestId = msg.quest_id;
     this.dom.hideQuestDialog();
-    this.startQuestTimer(msg.expires_at, null);
+    this.questTimer.start(msg.expires_at, null, this.serverTimeOffsetMs);
     const newItems = (msg.world_items as unknown[]).map(toWorldItemRecord).filter((w): w is WorldItemRecord => w !== null);
     this.worldItems = [...this.worldItems, ...newItems];
+    this.renderWorldItems();
     this.dom.setTurnInQuest(null);
   }
 
@@ -234,6 +258,8 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
+    this.worldItems = this.worldItems.filter((item) => item.item_id !== msg['item_id']);
+    this.renderWorldItems();
     this.dom.setTurnInQuest(this.activeQuestId);
     this.updateInventoryPanel();
   }
@@ -253,7 +279,7 @@ export class GameScene extends Phaser.Scene {
     if (this.activeQuestId === questId) {
       this.activeQuestId = null;
     }
-    this.stopQuestTimer();
+    this.questTimer.stop();
     this.dom.setTurnInQuest(null);
     this.dom.showQuestComplete(coinsAwarded);
     this.updateCoinsDisplay();
@@ -269,7 +295,7 @@ export class GameScene extends Phaser.Scene {
       q.cooldown_until = cooldownUntil;
     }
     if (this.activeQuestId === questId) this.activeQuestId = null;
-    this.stopQuestTimer();
+    this.questTimer.stop();
     if (cooldownUntil !== null) this.dom.showQuestCooldown(cooldownUntil);
     this.updateGameStore();
   }
@@ -311,7 +337,7 @@ export class GameScene extends Phaser.Scene {
     const q = this.quests.find((item) => item.quest_id === questId);
     if (q !== undefined && q.status !== 'active') return;
     if (this.wsClient === null) return;
-    this.wsClient.send({ type: 'quest_turn_in', player_id: this.playerId, quest_id: questId });
+    this.wsClient.send({ type: 'quest_turn_in', player_id: this.playerId, quest_id: questId, x: this.movement.getX(), y: this.movement.getY() });
   }
 
   private sendItemPickup(questId: string, itemId: string): void {
@@ -344,55 +370,13 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // --- Quest timer ---
+  private updateCoinsDisplay(): void { this.dom.updateCoinsDisplay(this.coins); }
 
-  private startQuestTimer(expiresAtISO: string, serverTimeISO: string | null): void {
-    // Clear any running interval first, without clearing questDeadlineMs
-    if (this.questTimerInterval !== null) {
-      clearInterval(this.questTimerInterval);
-      this.questTimerInterval = null;
-    }
-    const expiresMs = new Date(expiresAtISO).getTime();
-    if (serverTimeISO !== null) {
-      const remainingMs = expiresMs - new Date(serverTimeISO).getTime();
-      this.questDeadlineMs = Date.now() + remainingMs;
-    } else {
-      this.questDeadlineMs = expiresMs + this.serverTimeOffsetMs;
-    }
-    this.tickQuestTimer();
-    this.questTimerInterval = setInterval(() => this.tickQuestTimer(), 1000);
-  }
+  private updateLevelDisplay(): void { this.dom.updateLevelDisplay(this.level); }
 
-  private stopQuestTimer(): void {
-    if (this.questTimerInterval !== null) {
-      clearInterval(this.questTimerInterval);
-      this.questTimerInterval = null;
-    }
-    this.questDeadlineMs = null;
-    this.dom.hideQuestTimer();
-  }
+  private updateShopPanel(): void { this.dom.updateShopPanel(this.shopBootstrapItems); }
 
-  private tickQuestTimer(): void {
-    if (this.questDeadlineMs === null) return;
-    const remainingMs = this.questDeadlineMs - Date.now();
-    this.dom.showQuestTimer(formatCountdown(remainingMs));
-  }
-
-  private updateCoinsDisplay(): void {
-    this.dom.updateCoinsDisplay(this.coins);
-  }
-
-  private updateLevelDisplay(): void {
-    this.dom.updateLevelDisplay(this.level);
-  }
-
-  private updateShopPanel(): void {
-    this.dom.updateShopPanel(this.shopBootstrapItems);
-  }
-
-  private updateInventoryPanel(): void {
-    this.dom.updateInventoryPanel(this.inventory, this.equipment, this.consumableItemIds);
-  }
+  private updateInventoryPanel(): void { this.dom.updateInventoryPanel(this.inventory, this.equipment, this.consumableItemIds); }
 
   private onAcceptQuest(): void {
     if (this.pendingQuestOffer === null || this.wsClient === null) return;
@@ -400,6 +384,25 @@ export class GameScene extends Phaser.Scene {
     this.wsClient.send({ type: 'quest_accept', player_id: this.playerId, quest_id: questId });
     this.dom.hideQuestDialog();
     this.pendingQuestOffer = null;
+  }
+
+  private sendNpcInteract(npcId: string): void {
+    if (this.wsClient !== null) this.wsClient.send({ type: 'npc_interact_request', player_id: this.playerId, npc_id: npcId, x: this.movement.getX(), y: this.movement.getY() });
+  }
+
+  private interactWithNearestNpc(): void {
+    const npc = findNearestNpc(this.movement.getX(), this.movement.getY());
+    if (npc !== null) this.sendNpcInteract(npc.id);
+  }
+
+  private pickUpNearestWorldItem(): void {
+    if (this.activeQuestId === null) return;
+    const item = findNearestWorldItem(this.worldItems, this.movement.getX(), this.movement.getY());
+    if (item !== null) this.sendItemPickup(this.activeQuestId, item.item_id);
+  }
+
+  private renderWorldItems(): void {
+    this.worldRenderer?.renderWorldItems(this.worldItems, (item) => { if (this.activeQuestId !== null) this.sendItemPickup(this.activeQuestId, item.item_id); });
   }
 
   private updateGameStore(): void {
@@ -414,8 +417,6 @@ export class GameScene extends Phaser.Scene {
       player: { coins: this.coins, level: this.level },
     });
   }
-
-  // --- Window event listeners ---
 
   private registerGameEventListeners(): void {
     this.boundNpcInteract = (e: Event) => {
@@ -439,7 +440,17 @@ export class GameScene extends Phaser.Scene {
     window.addEventListener('game:npc-interact', this.boundNpcInteract);
     window.addEventListener('game:quest-turn-in', this.boundQuestTurnIn);
     window.addEventListener('game:item-pickup', this.boundItemPickup);
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.music?.startAfterUserGesture();
+      if (this.movement.hasStateSyncReceived()) this.movement.setMoveTarget(pointer.worldX, pointer.worldY);
+    });
     this.boundKeyDown = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'e') {
+        this.interactWithNearestNpc();
+      } else if (e.code === 'Space') {
+        this.pickUpNearestWorldItem();
+      }
+      this.music?.startAfterUserGesture();
       this.inputState = applyKeyDown(this.inputState, e.key);
     };
     this.boundKeyUp = (e: KeyboardEvent) => {
@@ -451,13 +462,23 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.movement.tick(delta, this.inputState, this.wsClient);
+    this.worldRenderer?.updatePlayerPosition(
+      this.movement.getX(),
+      this.movement.getY(),
+      this.movement.getDirection(),
+      this.movement.isMoving(),
+    );
+    this.mapRenderer?.ensureTilesAround(this.movement.getX(), this.movement.getY());
+    this.npcAutoTrigger.tick(
+      this.movement.getX(),
+      this.movement.getY(),
+      this.pendingQuestOffer === null && this.activeQuestId === null,
+      (npcId) => this.sendNpcInteract(npcId),
+    );
   }
 
   shutdown(): void {
-    if (this.questTimerInterval !== null) {
-      clearInterval(this.questTimerInterval);
-      this.questTimerInterval = null;
-    }
+    this.questTimer.stop();
     if (this.boundNpcInteract !== null) window.removeEventListener('game:npc-interact', this.boundNpcInteract);
     if (this.boundQuestTurnIn !== null) window.removeEventListener('game:quest-turn-in', this.boundQuestTurnIn);
     if (this.boundItemPickup !== null) window.removeEventListener('game:item-pickup', this.boundItemPickup);
@@ -465,5 +486,9 @@ export class GameScene extends Phaser.Scene {
     if (this.boundKeyUp !== null) window.removeEventListener('keyup', this.boundKeyUp);
     this.dom.destroy();
     this.joystick.destroy();
+    this.music?.destroy();
+    this.music = null;
+    this.worldRenderer?.destroy();
+    this.worldRenderer = null;
   }
 }

@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from enum import Enum
 
+from app.services.collision import is_world_collision_blocked
+
 MAP_WIDTH = 5430.0
 MAP_HEIGHT = 7240.0
 POSITION_SAVE_INTERVAL_SECONDS = 30.0
@@ -17,6 +19,7 @@ class MoveStatus(str, Enum):
     ACCEPTED = "accepted"
     OUT_OF_BOUNDS = "out_of_bounds"
     RATE_LIMITED = "rate_limited"
+    COLLISION_BLOCKED = "collision_blocked"
 
 
 class WorldService:
@@ -62,6 +65,9 @@ class WorldService:
 
         if not is_in_world_bounds(x, y):
             return MoveStatus.OUT_OF_BOUNDS
+
+        if is_world_collision_blocked(x, y):
+            return MoveStatus.COLLISION_BLOCKED
 
         self._positions[player_id] = {"x": x, "y": y, "direction": direction}
         self._last_move_time[player_id] = now

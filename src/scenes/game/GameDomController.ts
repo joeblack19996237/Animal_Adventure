@@ -1,4 +1,5 @@
 const NOTIFICATION_AUTO_HIDE_MS = 5000;
+const QUEST_DECISION_DELAY_MS = 10_000;
 
 export interface QuestOfferView {
   questId: string;
@@ -25,32 +26,36 @@ export interface GameDomCallbacks {
   onBootstrapRetry: () => void;
 }
 
+type PanelName = 'friends' | 'shop' | 'inventory' | 'map';
+
 export class GameDomController {
   private questDialogEl: HTMLDivElement | null = null;
   private questDialogTitleEl: HTMLHeadingElement | null = null;
   private questDialogRewardsEl: HTMLParagraphElement | null = null;
+  private questDecisionEl: HTMLDivElement | null = null;
+  private questDecisionTimer: ReturnType<typeof setTimeout> | null = null;
   private questTimerEl: HTMLDivElement | null = null;
+  private questTimerFillEl: HTMLDivElement | null = null;
   private questTimerTextEl: HTMLSpanElement | null = null;
   private turnInBtn: HTMLButtonElement | null = null;
   private questCompleteEl: HTMLDivElement | null = null;
   private questCooldownEl: HTMLDivElement | null = null;
-  private shopPanel: HTMLDivElement | null = null;
+  private levelUpEl: HTMLDivElement | null = null;
+  private bootstrapErrorEl: HTMLDivElement | null = null;
   private shopPanelItems: HTMLDivElement | null = null;
-  private inventoryPanel: HTMLDivElement | null = null;
   private inventoryPanelItems: HTMLDivElement | null = null;
   private coinsEl: HTMLSpanElement | null = null;
   private levelEl: HTMLSpanElement | null = null;
-  private levelUpEl: HTMLDivElement | null = null;
-  private bootstrapErrorEl: HTMLDivElement | null = null;
+  private readonly panels = new Map<PanelName, HTMLDivElement>();
 
   constructor(private readonly callbacks: GameDomCallbacks) {}
 
   create(): void {
     this.createHudEl();
+    this.createMenuEl();
     this.createQuestDialogEl();
     this.createQuestTimerEl();
-    this.createShopPanelEl();
-    this.createInventoryPanelEl();
+    this.createPanels();
     this.createNotificationEls();
   }
 
@@ -60,9 +65,8 @@ export class GameDomController {
       overlay.id = 'bootstrap-error';
       overlay.dataset['testid'] = 'bootstrap-error';
       overlay.style.cssText =
-        'position:fixed;top:0;left:0;width:100%;height:100%;z-index:2000;' +
-        'display:flex;flex-direction:column;align-items:center;justify-content:center;' +
-        'gap:12px;background:rgba(8,12,24,0.94);color:#fff;text-align:center;padding:24px;';
+        'position:fixed;inset:0;z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;' +
+        'gap:12px;background:rgba(8,12,24,0.94);color:#fff;text-align:center;padding:24px;font-family:Fredoka,system-ui,sans-serif;';
 
       const title = document.createElement('h2');
       title.textContent = 'Configuration failed to load';
@@ -76,7 +80,7 @@ export class GameDomController {
 
       const retry = document.createElement('button');
       retry.textContent = 'Retry';
-      retry.style.cssText = 'padding:8px 18px;cursor:pointer;font-size:1rem;';
+      retry.style.cssText = 'padding:8px 18px;cursor:pointer;font-size:1rem;border-radius:999px;border:0;';
       retry.addEventListener('click', () => {
         overlay.style.display = 'none';
         this.callbacks.onBootstrapRetry();
@@ -90,38 +94,24 @@ export class GameDomController {
   }
 
   hideBootstrapError(): void {
-    if (this.bootstrapErrorEl !== null) {
-      this.bootstrapErrorEl.style.display = 'none';
-    }
+    if (this.bootstrapErrorEl !== null) this.bootstrapErrorEl.style.display = 'none';
   }
 
   updateCoinsDisplay(coins: number): void {
-    if (this.coinsEl !== null) {
-      this.coinsEl.textContent = `$${coins}`;
-    }
+    if (this.coinsEl !== null) this.coinsEl.textContent = String(coins);
   }
 
   updateLevelDisplay(level: number): void {
-    if (this.levelEl !== null) {
-      this.levelEl.textContent = `Level: ${level}`;
-    }
+    if (this.levelEl !== null) this.levelEl.textContent = String(level);
   }
 
   updateShopPanel(items: readonly ShopItemView[]): void {
     if (this.shopPanelItems === null) return;
     this.shopPanelItems.innerHTML = '';
     for (const item of items) {
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;';
-
-      const label = document.createElement('span');
-      label.textContent = `${item.item_id} ($${item.price})`;
-      row.appendChild(label);
-
-      const buyBtn = document.createElement('button');
-      buyBtn.textContent = 'Buy';
+      const row = this.createPanelRow(`${item.item_id}  $${item.price}`);
+      const buyBtn = this.createTextButton('Buy');
       buyBtn.dataset['buyItem'] = item.item_id;
-      buyBtn.style.cssText = 'padding:4px 10px;cursor:pointer;';
       buyBtn.addEventListener('click', () => this.callbacks.onBuyItem(item.item_id));
       row.appendChild(buyBtn);
       this.shopPanelItems.appendChild(row);
@@ -140,20 +130,12 @@ export class GameDomController {
     for (const item of allItems) {
       if (seen.has(item.item_id)) continue;
       seen.add(item.item_id);
-      const row = document.createElement('div');
+      const row = this.createPanelRow(`${item.item_id} x${item.quantity}`);
       row.dataset['itemId'] = item.item_id;
       row.dataset['inventoryItem'] = item.item_id;
-      row.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;';
-
-      const label = document.createElement('span');
-      label.textContent = `${item.item_id} x${item.quantity}`;
-      row.appendChild(label);
-
       if (consumableItemIds.has(item.item_id) && item.quantity > 0) {
-        const useBtn = document.createElement('button');
-        useBtn.textContent = 'Use';
+        const useBtn = this.createTextButton('Use');
         useBtn.dataset['useItem'] = item.item_id;
-        useBtn.style.cssText = 'padding:4px 10px;cursor:pointer;';
         useBtn.addEventListener('click', () => this.callbacks.onUseItem(item.item_id));
         row.appendChild(useBtn);
       }
@@ -162,36 +144,39 @@ export class GameDomController {
   }
 
   showQuestDialog(offer: QuestOfferView): void {
+    this.clearQuestDecisionTimer();
     if (this.questDialogTitleEl !== null) this.questDialogTitleEl.textContent = offer.title;
     if (this.questDialogRewardsEl !== null) {
-      const rewardStrs = offer.rewards.map((r) => {
-        const rec = r as Record<string, unknown>;
-        if (rec['type'] === 'coins') return `$${String(rec['amount'])} coins`;
-        if (rec['type'] === 'equipment') return String(rec['item_id'] ?? 'item');
-        return String(rec['type'] ?? '');
-      });
-      this.questDialogRewardsEl.textContent = `Rewards: ${rewardStrs.join(', ')}`;
+      this.questDialogRewardsEl.textContent = `Rewards: ${this.formatRewards(offer.rewards)}`;
     }
+    if (this.questDecisionEl !== null) this.questDecisionEl.style.display = 'none';
     if (this.questDialogEl !== null) this.questDialogEl.style.display = 'block';
+    this.questDecisionTimer = setTimeout(() => {
+      if (this.questDecisionEl !== null) this.questDecisionEl.style.display = 'flex';
+    }, QUEST_DECISION_DELAY_MS);
   }
 
   hideQuestDialog(): void {
+    this.clearQuestDecisionTimer();
     if (this.questDialogEl !== null) this.questDialogEl.style.display = 'none';
   }
 
-  showQuestTimer(text: string): void {
-    if (this.questTimerTextEl !== null) {
-      this.questTimerTextEl.textContent = text;
+  showQuestTimer(text: string, ratio = 1): void {
+    if (this.questTimerFillEl !== null) {
+      const clamped = Math.max(0, Math.min(1, ratio));
+      this.questTimerFillEl.style.width = `${Math.round(clamped * 100)}%`;
+      this.questTimerFillEl.style.backgroundImage =
+        clamped <= 0.1
+          ? "url('/assets/images/UI/ui_task_timer_bar_red.png')"
+          : "url('/assets/images/UI/ui_task_timer_bar_green.png')";
+      this.questTimerFillEl.dataset['remaining'] = text;
     }
-    if (this.questTimerEl !== null) {
-      this.questTimerEl.style.display = 'block';
-    }
+    if (this.questTimerTextEl !== null) this.questTimerTextEl.textContent = text;
+    if (this.questTimerEl !== null) this.questTimerEl.style.display = 'flex';
   }
 
   hideQuestTimer(): void {
-    if (this.questTimerEl !== null) {
-      this.questTimerEl.style.display = 'none';
-    }
+    if (this.questTimerEl !== null) this.questTimerEl.style.display = 'none';
   }
 
   setTurnInQuest(questId: string | null): void {
@@ -207,7 +192,7 @@ export class GameDomController {
 
   showQuestComplete(coinsAwarded: number): void {
     if (this.questCompleteEl === null) return;
-    this.questCompleteEl.textContent = `Quest complete! You earned $${coinsAwarded} coins.`;
+    this.questCompleteEl.textContent = `Quest complete! +$${coinsAwarded}`;
     this.questCompleteEl.style.display = 'block';
     setTimeout(() => {
       if (this.questCompleteEl !== null) this.questCompleteEl.style.display = 'none';
@@ -226,79 +211,63 @@ export class GameDomController {
 
   showLevelUp(level: number): void {
     if (this.levelUpEl === null) return;
-    this.levelUpEl.textContent = `Level ${level}! Level up!`;
+    this.levelUpEl.textContent = `Level ${level}!`;
     this.levelUpEl.style.display = 'block';
   }
 
   destroy(): void {
-    const idsToRemove = [
-      'hud',
-      'quest-dialog',
-      'quest-timer',
-      'shop-panel',
-      'inventory-panel',
-      'bootstrap-error',
-    ];
-    for (const id of idsToRemove) {
-      const el = document.getElementById(id);
-      if (el?.parentElement) el.parentElement.removeChild(el);
+    this.clearQuestDecisionTimer();
+    for (const id of ['hud', 'game-menu', 'quest-dialog', 'quest-timer', 'bootstrap-error']) {
+      document.getElementById(id)?.remove();
     }
-    if (this.questCompleteEl?.parentElement) this.questCompleteEl.parentElement.removeChild(this.questCompleteEl);
-    if (this.questCooldownEl?.parentElement) this.questCooldownEl.parentElement.removeChild(this.questCooldownEl);
-    if (this.levelUpEl?.parentElement) this.levelUpEl.parentElement.removeChild(this.levelUpEl);
-  }
-
-  private toggleShopPanel(): void {
-    if (this.shopPanel === null) return;
-    const isVisible = this.shopPanel.style.display !== 'none';
-    this.shopPanel.style.display = isVisible ? 'none' : 'block';
-    if (this.inventoryPanel !== null) this.inventoryPanel.style.display = 'none';
-  }
-
-  private toggleInventoryPanel(): void {
-    if (this.inventoryPanel === null) return;
-    const isVisible = this.inventoryPanel.style.display !== 'none';
-    this.inventoryPanel.style.display = isVisible ? 'none' : 'block';
-    if (this.shopPanel !== null) this.shopPanel.style.display = 'none';
+    for (const panel of this.panels.values()) panel.remove();
+    this.questCompleteEl?.remove();
+    this.questCooldownEl?.remove();
+    this.levelUpEl?.remove();
   }
 
   private createHudEl(): void {
     const hud = document.createElement('div');
     hud.id = 'hud';
     hud.style.cssText =
-      'position:fixed;top:12px;right:12px;display:flex;align-items:center;gap:8px;z-index:50;';
+      'position:fixed;top:12px;right:12px;display:flex;align-items:center;gap:10px;z-index:80;font-family:Fredoka,system-ui,sans-serif;';
 
-    this.coinsEl = document.createElement('span');
-    this.coinsEl.id = 'hud-coins';
-    this.coinsEl.dataset['stat'] = 'coins';
-    this.coinsEl.style.cssText = 'color:#ffe066;font-weight:bold;font-size:1.1rem;';
-    this.coinsEl.textContent = '$0';
-    hud.appendChild(this.coinsEl);
+    const coins = this.createHudStat('/assets/images/UI/ui_currency_icon.png', 'coins');
+    this.coinsEl = coins.value;
+    hud.appendChild(coins.el);
 
-    this.levelEl = document.createElement('span');
-    this.levelEl.id = 'hud-level';
-    this.levelEl.dataset['stat'] = 'level';
-    this.levelEl.style.cssText = 'color:#aad4ff;font-weight:bold;font-size:1.1rem;';
-    this.levelEl.textContent = 'Level: 0';
-    hud.appendChild(this.levelEl);
-
-    const shopBtn = document.createElement('button');
-    shopBtn.id = 'hud-shop';
-    shopBtn.dataset['hud'] = 'shop';
-    shopBtn.textContent = 'Shop';
-    shopBtn.style.cssText = 'padding:6px 14px;cursor:pointer;z-index:50;';
-    shopBtn.addEventListener('click', () => this.toggleShopPanel());
-    hud.appendChild(shopBtn);
-
-    const invBtn = document.createElement('button');
-    invBtn.id = 'hud-inventory';
-    invBtn.dataset['hud'] = 'inventory';
-    invBtn.textContent = 'Bag';
-    invBtn.style.cssText = 'padding:6px 14px;cursor:pointer;z-index:50;';
-    invBtn.addEventListener('click', () => this.toggleInventoryPanel());
-    hud.appendChild(invBtn);
+    const level = this.createHudStat('/assets/images/UI/ui_level_badge.png', 'level');
+    this.levelEl = level.value;
+    hud.appendChild(level.el);
 
     document.body.appendChild(hud);
+  }
+
+  private createMenuEl(): void {
+    const menu = document.createElement('div');
+    menu.id = 'game-menu';
+    menu.style.cssText =
+      "position:fixed;right:16px;bottom:16px;z-index:90;display:grid;grid-template-columns:repeat(4,64px);gap:8px;" +
+      "padding:14px;background:url('/assets/images/V2_Resources/UI_frame.png') center/100% 100% no-repeat;";
+
+    const buttons: [PanelName, string, string][] = [
+      ['friends', '/assets/images/UI/ui_menu_friends_icon.png', 'Friends'],
+      ['shop', '/assets/images/UI/ui_menu_shop_icon.png', 'Shop'],
+      ['inventory', '/assets/images/UI/ui_menu_inventory_icon.png', 'Bag'],
+      ['map', '/assets/images/UI/ui_menu_map_icon.png', 'Map'],
+    ];
+    for (const [panel, image, label] of buttons) {
+      const btn = document.createElement('button');
+      btn.id = panel === 'shop' ? 'hud-shop' : panel === 'inventory' ? 'hud-inventory' : `hud-${panel}`;
+      btn.ariaLabel = label;
+      btn.dataset['hud'] = panel;
+      btn.style.cssText =
+        `width:64px;height:64px;border:0;border-radius:16px;cursor:pointer;background:rgba(255,255,255,.18) url('${image}') center/76% 76% no-repeat;` +
+        'box-shadow:0 4px 0 rgba(55,42,22,.35);';
+      btn.addEventListener('click', () => this.togglePanel(panel));
+      menu.appendChild(btn);
+    }
+    document.body.appendChild(menu);
   }
 
   private createQuestDialogEl(): void {
@@ -307,24 +276,29 @@ export class GameDomController {
     dialog.dataset['ui'] = 'quest';
     dialog.dataset['testid'] = 'quest-dialog';
     dialog.style.cssText =
-      'display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
-      'background:#1a1a2e;color:#fff;border:2px solid #4a90d9;border-radius:8px;' +
-      'padding:20px 28px;min-width:280px;z-index:200;text-align:center;';
+      "display:none;position:fixed;left:50%;bottom:7%;transform:translateX(-50%);width:min(680px,86vw);min-height:220px;z-index:220;" +
+      "background:url('/assets/images/UI/ui_dialog_box.png') center/100% 100% no-repeat;padding:42px 58px 34px;color:#50321d;text-align:center;font-family:Fredoka,system-ui,sans-serif;";
 
     this.questDialogTitleEl = document.createElement('h3');
-    this.questDialogTitleEl.style.cssText = 'margin:0 0 10px;color:#ffe066;';
+    this.questDialogTitleEl.style.cssText = 'margin:0 0 12px;font-size:28px;color:#4c2d19;';
     dialog.appendChild(this.questDialogTitleEl);
 
     this.questDialogRewardsEl = document.createElement('p');
-    this.questDialogRewardsEl.style.cssText = 'margin:0 0 14px;font-size:0.9rem;color:#aad4ff;';
+    this.questDialogRewardsEl.style.cssText = 'margin:0;font-size:19px;color:#6d4a2d;';
     dialog.appendChild(this.questDialogRewardsEl);
 
-    const acceptBtn = document.createElement('button');
-    acceptBtn.textContent = 'Accept';
-    acceptBtn.style.cssText = 'padding:8px 20px;cursor:pointer;font-size:1rem;';
-    acceptBtn.addEventListener('click', () => this.callbacks.onAcceptQuest());
-    dialog.appendChild(acceptBtn);
+    this.questDecisionEl = document.createElement('div');
+    this.questDecisionEl.style.cssText = 'display:none;justify-content:center;gap:24px;margin-top:24px;';
 
+    const cancelBtn = this.createImageButton('/assets/images/UI/ui_cancel_button.png', 'Cancel');
+    cancelBtn.addEventListener('click', () => this.hideQuestDialog());
+    this.questDecisionEl.appendChild(cancelBtn);
+
+    const acceptBtn = this.createImageButton('/assets/images/UI/ui_confirm_button.png', 'Accept');
+    acceptBtn.addEventListener('click', () => this.callbacks.onAcceptQuest());
+    this.questDecisionEl.appendChild(acceptBtn);
+
+    dialog.appendChild(this.questDecisionEl);
     document.body.appendChild(dialog);
     this.questDialogEl = dialog;
   }
@@ -335,23 +309,24 @@ export class GameDomController {
     timer.dataset['testid'] = 'quest-timer';
     timer.dataset['ui'] = 'quest-active';
     timer.style.cssText =
-      'display:none;position:fixed;top:52px;left:50%;transform:translateX(-50%);' +
-      'background:rgba(10,20,40,0.85);color:#ffe066;border:1px solid #4a90d9;' +
-      'border-radius:6px;padding:8px 16px;z-index:50;text-align:center;';
+      'display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:80;align-items:center;gap:12px;';
 
-    const label = document.createElement('span');
-    label.textContent = 'Quest: ';
-    label.style.color = '#aad4ff';
-    timer.appendChild(label);
+    const track = document.createElement('div');
+    track.style.cssText = 'width:min(420px,52vw);height:30px;border-radius:999px;overflow:hidden;background:rgba(59,45,28,.35);';
+    this.questTimerFillEl = document.createElement('div');
+    this.questTimerFillEl.style.cssText =
+      "width:100%;height:100%;background:url('/assets/images/UI/ui_task_timer_bar_green.png') left center/100% 100% no-repeat;";
+    track.appendChild(this.questTimerFillEl);
+    timer.appendChild(track);
 
     this.questTimerTextEl = document.createElement('span');
-    this.questTimerTextEl.textContent = '0:00';
+    this.questTimerTextEl.style.cssText =
+      'min-width:56px;color:#4c2d19;font-size:18px;font-weight:700;text-shadow:0 1px 0 rgba(255,255,255,.7);';
     timer.appendChild(this.questTimerTextEl);
 
-    this.turnInBtn = document.createElement('button');
-    this.turnInBtn.textContent = 'Turn In';
+    this.turnInBtn = this.createTextButton('Turn In');
     this.turnInBtn.dataset['action'] = 'turn-in';
-    this.turnInBtn.style.cssText = 'display:none;margin-left:12px;padding:4px 12px;cursor:pointer;';
+    this.turnInBtn.style.display = 'none';
     this.turnInBtn.addEventListener('click', () => this.callbacks.onTurnInQuest());
     timer.appendChild(this.turnInBtn);
 
@@ -359,95 +334,122 @@ export class GameDomController {
     this.questTimerEl = timer;
   }
 
-  private createShopPanelEl(): void {
-    const panel = document.createElement('div');
-    panel.id = 'shop-panel';
-    panel.dataset['ui'] = 'shop';
-    panel.dataset['testid'] = 'shop-panel';
-    panel.style.cssText =
-      'display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
-      'background:#1a1a2e;color:#fff;border:2px solid #4a90d9;border-radius:8px;' +
-      'padding:20px 28px;min-width:240px;z-index:200;';
-
-    const title = document.createElement('h3');
-    title.textContent = 'Shop';
-    title.style.cssText = 'margin:0 0 12px;color:#ffe066;';
-    panel.appendChild(title);
-
-    this.shopPanelItems = document.createElement('div');
-    panel.appendChild(this.shopPanelItems);
-
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'Close';
-    closeBtn.style.cssText = 'margin-top:12px;padding:4px 12px;cursor:pointer;';
-    closeBtn.addEventListener('click', () => {
-      if (this.shopPanel) this.shopPanel.style.display = 'none';
+  private createPanels(): void {
+    this.createPanel('friends', '/assets/images/UI/ui_friend_list_panel.png', (body) => {
+      body.textContent = 'Friends list is empty';
     });
-    panel.appendChild(closeBtn);
-
-    document.body.appendChild(panel);
-    this.shopPanel = panel;
+    this.createPanel('shop', '/assets/images/UI/ui_shop_panel.png', (body) => {
+      this.shopPanelItems = body;
+    });
+    this.createPanel('inventory', '/assets/images/UI/ui_inventory_panel.png', (body) => {
+      this.inventoryPanelItems = body;
+    });
+    this.createPanel('map', '/assets/images/UI/ui_minimap_frame.png', (body) => {
+      body.textContent = 'Spawn';
+    });
   }
 
-  private createInventoryPanelEl(): void {
+  private createPanel(name: PanelName, image: string, attachBody: (body: HTMLDivElement) => void): void {
     const panel = document.createElement('div');
-    panel.id = 'inventory-panel';
-    panel.dataset['ui'] = 'inventory';
-    panel.dataset['testid'] = 'inventory-panel';
+    panel.id = name === 'shop' ? 'shop-panel' : name === 'inventory' ? 'inventory-panel' : `${name}-panel`;
+    panel.dataset['ui'] = name;
+    panel.dataset['testid'] = `${name}-panel`;
     panel.style.cssText =
-      'display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);' +
-      'background:#1a1a2e;color:#fff;border:2px solid #4a90d9;border-radius:8px;' +
-      'padding:20px 28px;min-width:240px;z-index:200;';
+      `display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:210;width:min(520px,86vw);min-height:360px;` +
+      `background:url('${image}') center/100% 100% no-repeat;padding:64px 62px 44px;color:#4c2d19;font-family:Fredoka,system-ui,sans-serif;`;
 
-    const title = document.createElement('h3');
-    title.textContent = 'Inventory';
-    title.style.cssText = 'margin:0 0 12px;color:#ffe066;';
-    panel.appendChild(title);
+    const body = document.createElement('div');
+    body.style.cssText = 'max-height:260px;overflow:auto;font-size:18px;';
+    attachBody(body);
+    panel.appendChild(body);
 
-    this.inventoryPanelItems = document.createElement('div');
-    panel.appendChild(this.inventoryPanelItems);
-
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = 'Close';
-    closeBtn.style.cssText = 'margin-top:12px;padding:4px 12px;cursor:pointer;';
-    closeBtn.addEventListener('click', () => {
-      if (this.inventoryPanel) this.inventoryPanel.style.display = 'none';
-    });
+    const closeBtn = this.createTextButton('Close');
+    closeBtn.style.cssText += 'position:absolute;right:36px;bottom:24px;';
+    closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
     panel.appendChild(closeBtn);
 
     document.body.appendChild(panel);
-    this.inventoryPanel = panel;
+    this.panels.set(name, panel);
   }
 
   private createNotificationEls(): void {
-    const complete = document.createElement('div');
-    complete.dataset['testid'] = 'quest-completed';
-    complete.style.cssText =
-      'display:none;position:fixed;top:30%;left:50%;transform:translateX(-50%);' +
-      'background:#163d1f;color:#7fff7f;border:2px solid #3aaf3a;border-radius:8px;' +
-      'padding:14px 24px;z-index:300;text-align:center;font-size:1rem;';
-    document.body.appendChild(complete);
-    this.questCompleteEl = complete;
+    this.questCompleteEl = this.createPopup('/assets/images/UI/ui_task_complete_stamp.png', 'quest-completed');
+    this.questCooldownEl = this.createPopup('/assets/images/UI/ui_task_fail_notice.png', 'quest-cooldown');
+    this.levelUpEl = this.createPopup('/assets/images/UI/ui_level_up_banner.png', 'level-up');
+    this.levelUpEl.id = 'level-up-notification';
+  }
 
-    const cooldown = document.createElement('div');
-    cooldown.dataset['ui'] = 'quest-cooldown';
-    cooldown.dataset['testid'] = 'quest-cooldown';
-    cooldown.style.cssText =
-      'display:none;position:fixed;top:52px;left:50%;transform:translateX(-50%);' +
-      'background:rgba(80,20,20,0.9);color:#ff9999;border:1px solid #c04040;' +
-      'border-radius:6px;padding:8px 16px;z-index:50;';
-    cooldown.textContent = 'Quest failed';
-    document.body.appendChild(cooldown);
-    this.questCooldownEl = cooldown;
+  private createPopup(image: string, testId: string): HTMLDivElement {
+    const popup = document.createElement('div');
+    popup.dataset['testid'] = testId;
+    popup.style.cssText =
+      `display:none;position:fixed;top:22%;left:50%;transform:translateX(-50%);z-index:300;min-width:260px;min-height:92px;` +
+      `background:url('${image}') center/100% 100% no-repeat;color:#4c2d19;padding:32px 42px;text-align:center;font-size:22px;font-weight:700;`;
+    document.body.appendChild(popup);
+    return popup;
+  }
 
-    const levelUp = document.createElement('div');
-    levelUp.id = 'level-up-notification';
-    levelUp.dataset['testid'] = 'level-up';
-    levelUp.style.cssText =
-      'display:none;position:fixed;top:20%;left:50%;transform:translateX(-50%);' +
-      'background:#1a1a2e;color:#ffe066;border:2px solid #f0c040;border-radius:8px;' +
-      'padding:18px 32px;z-index:300;text-align:center;font-size:1.4rem;font-weight:bold;';
-    document.body.appendChild(levelUp);
-    this.levelUpEl = levelUp;
+  private createHudStat(image: string, stat: string): { el: HTMLDivElement; value: HTMLSpanElement } {
+    const el = document.createElement('div');
+    el.style.cssText =
+      `position:relative;width:88px;height:58px;background:url('${image}') center/contain no-repeat;display:flex;align-items:center;justify-content:center;`;
+    const value = document.createElement('span');
+    value.id = stat === 'coins' ? 'hud-coins' : 'hud-level';
+    value.dataset['stat'] = stat;
+    value.textContent = stat === 'coins' ? '0' : '0';
+    value.style.cssText = 'font-size:21px;font-weight:700;color:#fff;text-shadow:0 2px 3px rgba(0,0,0,.45);transform:translateY(2px);';
+    el.appendChild(value);
+    return { el, value };
+  }
+
+  private createPanelRow(text: string): HTMLDivElement {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;';
+    const label = document.createElement('span');
+    label.textContent = text;
+    row.appendChild(label);
+    return row;
+  }
+
+  private createTextButton(text: string): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.textContent = text;
+    btn.style.cssText =
+      'padding:7px 14px;border:0;border-radius:999px;background:#ffd166;color:#5b3814;cursor:pointer;font-weight:700;';
+    return btn;
+  }
+
+  private createImageButton(image: string, label: string): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.ariaLabel = label;
+    btn.textContent = label;
+    btn.style.cssText =
+      `width:124px;height:54px;border:0;color:transparent;background:transparent url('${image}') center/contain no-repeat;cursor:pointer;`;
+    return btn;
+  }
+
+  private togglePanel(panelName: PanelName): void {
+    for (const [name, panel] of this.panels) {
+      panel.style.display = name === panelName && panel.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+
+  private formatRewards(rewards: unknown[]): string {
+    return rewards
+      .map((r) => {
+        const rec = r as Record<string, unknown>;
+        if (rec['type'] === 'coins') return `$${String(rec['amount'])}`;
+        if (rec['type'] === 'equipment') return String(rec['item_id'] ?? 'item');
+        return String(rec['type'] ?? '');
+      })
+      .filter((s) => s.length > 0)
+      .join(', ');
+  }
+
+  private clearQuestDecisionTimer(): void {
+    if (this.questDecisionTimer !== null) {
+      clearTimeout(this.questDecisionTimer);
+      this.questDecisionTimer = null;
+    }
   }
 }

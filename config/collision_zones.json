@@ -1,0 +1,44 @@
+{
+  "bounds": {
+    "x": 0,
+    "y": 0,
+    "width": 5430,
+    "height": 7240
+  },
+  "rects": [
+    {
+      "id": "western_fence_line",
+      "x": 0,
+      "y": 2380,
+      "width": 1040,
+      "height": 1960
+    },
+    {
+      "id": "eastern_tree_cluster",
+      "x": 4470,
+      "y": 2760,
+      "width": 820,
+      "height": 1280
+    }
+  ],
+  "circles": [
+    {
+      "id": "southern_decoration",
+      "x": 3310,
+      "y": 4860,
+      "radius": 260
+    }
+  ],
+  "polygons": [
+    {
+      "id": "western_river_bank",
+      "points": [
+        [0, 4700],
+        [840, 4620],
+        [1140, 5480],
+        [260, 6140],
+        [0, 6060]
+      ]
+    }
+  ]
+}

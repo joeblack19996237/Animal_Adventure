@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import assetsConfig from '../../config/assets.json';
 import mapTilesConfig from '../../config/map_tiles.json';
 import {
   resolveAssetImagePath,
@@ -10,6 +13,7 @@ import {
 import type { MapTileManifest } from '../../src/assets/loader';
 
 const manifest = mapTilesConfig as unknown as MapTileManifest;
+const assets = assetsConfig as Record<string, string>;
 const MAP_TILES_URL_PREFIX = '/assets/images/MapTiles/';
 
 describe('asset_manifest_uses_map_tiles', () => {
@@ -110,5 +114,20 @@ describe('asset_manifest_uses_map_tiles', () => {
       const entries = buildMapTileLoadList(manifest);
       expect(entries[0].url).toBe('/assets/images/MapTiles/map_tile_0_0.png');
     });
+  });
+});
+
+describe('cat snowman walk frame assets', () => {
+  it('declares all 24 directional walk frames with existing PNG files', () => {
+    const directions = ['front', 'back', 'left', 'right'];
+    for (const direction of directions) {
+      for (let frame = 1; frame <= 6; frame++) {
+        const key = `character_cat_snowman_walk_${direction}_${frame}`;
+        const url = assets[key];
+        expect(url, `${key} should be declared`).toBeTypeOf('string');
+        expect(url).toBe(`/assets/images/cat_snowman_sprite_sheet/cat-${direction}-walk-${frame}.png`);
+        expect(existsSync(join(process.cwd(), url.slice(1))), `${url} should exist`).toBe(true);
+      }
+    }
   });
 });

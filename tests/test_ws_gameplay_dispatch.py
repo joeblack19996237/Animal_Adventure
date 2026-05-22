@@ -53,7 +53,7 @@ def test_ws_dispatches_quest_offer_and_accept(client: TestClient) -> None:
                 "type": "player_move",
                 "player_id": player_id,
                 "x": 2715,
-                "y": 3200,
+                "y": 3105,
                 "direction": "up",
                 "client_tick": 1,
             }
@@ -78,6 +78,27 @@ def test_ws_dispatches_quest_offer_and_accept(client: TestClient) -> None:
         assert started["type"] == "quest_started"
         assert started["quest_id"] == "quest_hopper_blanket"
         assert started["world_items"][0]["item_id"] == "item_blanket"
+    finally:
+        manager.__exit__(None, None, None)
+
+
+def test_ws_rejects_collision_blocked_movement(client: TestClient) -> None:
+    player_id = _create_player(client, "CollisionPlayer")
+    manager, ws = _connect(client, player_id)
+    try:
+        ws.send_json(
+            {
+                "type": "player_move",
+                "player_id": player_id,
+                "x": 520,
+                "y": 3200,
+                "direction": "left",
+                "client_tick": 1,
+            }
+        )
+        response = ws.receive_json()
+        assert response["type"] == "error"
+        assert response["code"] == "collision_blocked"
     finally:
         manager.__exit__(None, None, None)
 
