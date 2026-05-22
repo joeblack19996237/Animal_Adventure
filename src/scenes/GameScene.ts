@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS } from './sceneKeys';
-import type { MapTileManifest } from '../assets/loader';
+import type { ForegroundTileManifest, MapTileManifest } from '../assets/loader';
 import mapTilesJson from '../../config/map_tiles.json';
+import foregroundTilesJson from '../../config/foreground_tiles.json';
 import { WSClient } from '../net/WSClient';
 import { isStateSyncMsg, isQuestOfferMsg, isQuestStartedMsg, isInventoryUpdatedMsg, isLevelUpMsg, type StateSyncMsg, type QuestOfferMsg, type QuestStartedMsg, type InventoryUpdatedMsg, type LevelUpMsg } from '../net/protocol';
 import { BootstrapService } from '../services/BootstrapService';
@@ -10,7 +11,7 @@ import { chooseCameraZoom } from './game/CameraViewport';
 import { GameDomController } from './game/GameDomController';
 import { publishGameStore } from './game/GameStoreDebug';
 import { JoystickController } from './game/JoystickController';
-import { MapTileRenderer, preloadInitialMapTiles } from './game/MapTileRenderer';
+import { MapTileRenderer, preloadInitialForegroundTiles, preloadInitialMapTiles } from './game/MapTileRenderer';
 import { NpcAutoTriggerController } from './game/NpcAutoTriggerController';
 import { PlayerMovementController } from './game/PlayerMovementController';
 import { QuestTimerController } from './game/QuestTimerController';
@@ -21,6 +22,7 @@ import { isItemRecord, isShopBootstrapItem, toInventoryRecord, toQuestRecord, to
 import { applyJoystickMove, applyJoystickRelease, applyKeyDown, applyKeyUp, createInputState, type InputState } from '../state/input';
 
 const MAP_TILE_MANIFEST: MapTileManifest = mapTilesJson;
+const FOREGROUND_TILE_MANIFEST: ForegroundTileManifest = foregroundTilesJson;
 const PLAYER_ID_KEY = 'animal_adventure_player_id';
 const PLAYER_SPEED = 300;
 const PLAYER_COLLISION_RADIUS = 38;
@@ -85,6 +87,7 @@ export class GameScene extends Phaser.Scene {
   }
   preload(): void {
     preloadInitialMapTiles(this, MAP_TILE_MANIFEST);
+    preloadInitialForegroundTiles(this, MAP_TILE_MANIFEST, FOREGROUND_TILE_MANIFEST);
     loadWorldTextures(this);
     loadBackgroundMusic(this);
     if (!this.textures.exists('ui_locked_region_overlay')) {
@@ -92,7 +95,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
   create(): void {
-    this.mapRenderer = new MapTileRenderer(this, MAP_TILE_MANIFEST);
+    this.mapRenderer = new MapTileRenderer(this, MAP_TILE_MANIFEST, FOREGROUND_TILE_MANIFEST);
     this.mapRenderer.renderLoadedTiles();
     this.cameras.main.setBounds(0, 0, MAP_TILE_MANIFEST.map_width, MAP_TILE_MANIFEST.map_height);
     this.cameras.main.setZoom(chooseCameraZoom());

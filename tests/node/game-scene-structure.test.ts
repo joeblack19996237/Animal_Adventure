@@ -22,7 +22,15 @@ describe('game scene movement structure', () => {
   it('preloads only initial map tiles instead of all map tiles', () => {
     const source = readFileSync(join(process.cwd(), 'src/scenes/GameScene.ts'), 'utf-8');
     expect(source).toContain('preloadInitialMapTiles(this, MAP_TILE_MANIFEST);');
+    expect(source).toContain('preloadInitialForegroundTiles(this, MAP_TILE_MANIFEST, FOREGROUND_TILE_MANIFEST);');
     expect(source).not.toContain('buildMapTileLoadList');
+  });
+
+  it('passes the sparse foreground tile manifest into the map renderer', () => {
+    const source = readFileSync(join(process.cwd(), 'src/scenes/GameScene.ts'), 'utf-8');
+    expect(source).toContain("import foregroundTilesJson from '../../config/foreground_tiles.json';");
+    expect(source).toContain('const FOREGROUND_TILE_MANIFEST: ForegroundTileManifest = foregroundTilesJson;');
+    expect(source).toContain('new MapTileRenderer(this, MAP_TILE_MANIFEST, FOREGROUND_TILE_MANIFEST);');
   });
 
   it('uses responsive camera zoom and removes NPC text labels from world rendering', () => {

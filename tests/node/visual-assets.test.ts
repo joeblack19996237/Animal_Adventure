@@ -13,6 +13,13 @@ describe('visual asset integration', () => {
     expect(css).toContain("font-family: 'Fredoka', system-ui, sans-serif");
   });
 
+  it('uses pixel-friendly Phaser rendering settings for tiled map compositing', () => {
+    const main = readFileSync(join(process.cwd(), 'src/main.ts'), 'utf-8');
+    expect(main).toContain('pixelArt: true');
+    expect(main).toContain('roundPixels: true');
+    expect(main).toContain('antialias: false');
+  });
+
   it('uses the main menu background and image-only character grid assets', () => {
     const source = readFileSync(join(process.cwd(), 'src/scenes/LoginView.ts'), 'utf-8');
     expect(source).toContain('/assets/images/UI/ui_main_menu_bg.png');

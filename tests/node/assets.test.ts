@@ -2,19 +2,24 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import assetsConfig from '../../config/assets.json';
+import foregroundTilesConfig from '../../config/foreground_tiles.json';
 import mapTilesConfig from '../../config/map_tiles.json';
 import {
   resolveAssetImagePath,
   isValidAssetPath,
   isForbiddenSingleTexture,
   buildMapTileLoadList,
+  buildForegroundTileLoadList,
+  buildForegroundTileLookup,
   FORBIDDEN_SINGLE_TEXTURE,
 } from '../../src/assets/loader';
-import type { MapTileManifest } from '../../src/assets/loader';
+import type { ForegroundTileManifest, MapTileManifest } from '../../src/assets/loader';
 
 const manifest = mapTilesConfig as unknown as MapTileManifest;
+const foregroundManifest = foregroundTilesConfig as unknown as ForegroundTileManifest;
 const assets = assetsConfig as Record<string, string>;
 const MAP_TILES_URL_PREFIX = '/assets/images/MapTiles/';
+const FOREGROUND_TILES_URL_PREFIX = '/assets/images/ForegroundTiles/';
 
 describe('asset_manifest_uses_map_tiles', () => {
   describe('resolveAssetImagePath', () => {
@@ -113,6 +118,38 @@ describe('asset_manifest_uses_map_tiles', () => {
     it('first tile URL resolves to /assets/images/MapTiles/map_tile_0_0.png', () => {
       const entries = buildMapTileLoadList(manifest);
       expect(entries[0].url).toBe('/assets/images/MapTiles/map_tile_0_0.png');
+    });
+  });
+
+  describe('buildForegroundTileLoadList from config/foreground_tiles.json', () => {
+    it('returns one entry per foreground manifest tile', () => {
+      const entries = buildForegroundTileLoadList(foregroundManifest);
+      expect(entries).toHaveLength(foregroundManifest.tiles.length);
+    });
+
+    it('prefixes foreground tile keys with foreground_', () => {
+      const entries = buildForegroundTileLoadList(foregroundManifest);
+      for (const entry of entries) {
+        expect(entry.key.startsWith('foreground_')).toBe(true);
+      }
+    });
+
+    it('resolves foreground tile URLs under /assets/images/ForegroundTiles/', () => {
+      const entries = buildForegroundTileLoadList(foregroundManifest);
+      for (const entry of entries) {
+        expect(entry.url.startsWith(FOREGROUND_TILES_URL_PREFIX)).toBe(true);
+      }
+    });
+
+    it('allows foreground manifests to be sparse', () => {
+      const entries = buildForegroundTileLoadList(foregroundManifest);
+      expect(entries.length).toBeGreaterThan(0);
+      expect(entries.length).toBeLessThan(manifest.tiles.length);
+    });
+
+    it('builds a lookup by base map tile id', () => {
+      const lookup = buildForegroundTileLookup(foregroundManifest);
+      expect(lookup.get('map_tile_0_0')?.path).toBe('ForegroundTiles/map_foreground_tile_0_0.png');
     });
   });
 });

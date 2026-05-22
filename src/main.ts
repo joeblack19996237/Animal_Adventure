@@ -13,6 +13,9 @@ const gameConfig: Phaser.Types.Core.GameConfig = {
   backgroundColor: '#000000',
   scene: [BootScene, LoginScene, PreloadScene, GameScene, UIScene],
   parent: 'game-container',
+  pixelArt: true,
+  roundPixels: true,
+  antialias: false,
 };
 
 new Phaser.Game(gameConfig);

@@ -1,6 +1,14 @@
 import Phaser from 'phaser';
 import mapJson from '../../../config/map.json';
-import { resolveAssetImagePath, type MapTileManifest, type MapTile } from '../../assets/loader';
+import {
+  buildForegroundTileLookup,
+  foregroundTileKey,
+  resolveAssetImagePath,
+  type ForegroundTile,
+  type ForegroundTileManifest,
+  type MapTileManifest,
+  type MapTile,
+} from '../../assets/loader';
 import { LOCKED_REGIONS } from './WorldCollision';
 
 const INITIAL_RADIUS = 1100;
@@ -39,24 +47,54 @@ export function preloadInitialMapTiles(scene: Phaser.Scene, manifest: MapTileMan
   }
 }
 
+export function preloadInitialForegroundTiles(
+  scene: Phaser.Scene,
+  mapManifest: MapTileManifest,
+  foregroundManifest: ForegroundTileManifest,
+): void {
+  const spawn = spawnPoint();
+  const foregroundTiles = buildForegroundTileLookup(foregroundManifest);
+  for (const tile of mapManifest.tiles) {
+    const foreground = foregroundTiles.get(tile.id);
+    if (foreground === undefined) continue;
+    const key = foregroundTileKey(tile.id);
+    if (scene.textures.exists(key)) continue;
+    if (isNear(tile, spawn.x, spawn.y, INITIAL_RADIUS)) {
+      scene.load.image(key, resolveAssetImagePath(foreground.path));
+    }
+  }
+}
+
 export class MapTileRenderer {
   private readonly renderedTiles = new Set<string>();
+  private readonly renderedForegroundTiles = new Set<string>();
   private readonly loadingTiles = new Set<string>();
+  private readonly loadingForegroundTiles = new Set<string>();
+  private readonly foregroundTiles: Map<string, ForegroundTile>;
   private readonly lockedOverlays: Phaser.GameObjects.GameObject[] = [];
+  private readonly foregroundDepth: number;
+  private readonly lockedOverlayDepth: number;
   private loaderActive = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly manifest: MapTileManifest,
-  ) {}
+    foregroundManifest: ForegroundTileManifest,
+  ) {
+    this.foregroundTiles = buildForegroundTileLookup(foregroundManifest);
+    this.foregroundDepth = this.manifest.map_height + 500;
+    this.lockedOverlayDepth = this.manifest.map_height + 1000;
+  }
 
   renderLoadedTiles(): void {
     for (const tile of this.manifest.tiles) {
-      if (this.renderedTiles.has(tile.id) || !this.scene.textures.exists(tile.id)) continue;
-      this.scene.add
-        .image(tile.x + tile.width / 2, tile.y + tile.height / 2, tile.id)
-        .setDepth(-1000);
-      this.renderedTiles.add(tile.id);
+      if (!this.renderedTiles.has(tile.id) && this.scene.textures.exists(tile.id)) {
+        this.scene.add
+          .image(tile.x + tile.width / 2, tile.y + tile.height / 2, tile.id)
+          .setDepth(-1000);
+        this.renderedTiles.add(tile.id);
+      }
+      this.renderLoadedForegroundTile(tile);
     }
   }
 
@@ -67,14 +105,14 @@ export class MapTileRenderer {
       if (playerLevel >= region.unlock_level) continue;
       const overlay = this.scene.add
         .rectangle(region.x + region.width / 2, region.y + region.height / 2, region.width, region.height, 0xe8f5ff, 0.62)
-        .setDepth(9000);
+        .setDepth(this.lockedOverlayDepth);
       if (this.scene.textures.exists('ui_locked_region_overlay')) {
         overlay.setFillStyle(0xe8f5ff, 0.45);
         const texture = this.scene.add
           .image(region.x + region.width / 2, region.y + region.height / 2, 'ui_locked_region_overlay')
           .setDisplaySize(region.width, region.height)
           .setAlpha(0.72)
-          .setDepth(9001);
+          .setDepth(this.lockedOverlayDepth + 1);
         this.lockedOverlays.push(texture);
       }
       this.lockedOverlays.push(overlay);
@@ -88,19 +126,49 @@ export class MapTileRenderer {
         !this.scene.textures.exists(tile.id) &&
         !this.loadingTiles.has(tile.id),
     );
-    if (missing.length === 0 || this.loaderActive) return;
+    const missingForeground = this.manifest.tiles.filter((tile) => {
+      const foreground = this.foregroundTiles.get(tile.id);
+      if (foreground === undefined) return false;
+      const key = foregroundTileKey(tile.id);
+      return isNear(tile, x, y, STREAM_RADIUS) &&
+        !this.scene.textures.exists(key) &&
+        !this.loadingForegroundTiles.has(key);
+    });
+    if ((missing.length === 0 && missingForeground.length === 0) || this.loaderActive) return;
 
     for (const tile of missing) {
       this.loadingTiles.add(tile.id);
       this.scene.load.image(tile.id, resolveAssetImagePath(tile.path));
     }
 
-    this.loaderActive = true;
-    this.scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
-      this.loaderActive = false;
-      this.loadingTiles.clear();
-      this.renderLoadedTiles();
-    });
-    this.scene.load.start();
+    for (const tile of missingForeground) {
+      const foreground = this.foregroundTiles.get(tile.id);
+      if (foreground === undefined) continue;
+      const key = foregroundTileKey(tile.id);
+      this.loadingForegroundTiles.add(key);
+      this.scene.load.image(key, resolveAssetImagePath(foreground.path));
+    }
+
+    if (missing.length > 0 || missingForeground.length > 0) {
+      this.loaderActive = true;
+      this.scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
+        this.loaderActive = false;
+        this.loadingTiles.clear();
+        this.loadingForegroundTiles.clear();
+        this.renderLoadedTiles();
+      });
+      this.scene.load.start();
+    }
+  }
+
+  private renderLoadedForegroundTile(tile: MapTile): void {
+    if (!this.renderedTiles.has(tile.id)) return;
+    if (!this.foregroundTiles.has(tile.id)) return;
+    const key = foregroundTileKey(tile.id);
+    if (this.renderedForegroundTiles.has(key) || !this.scene.textures.exists(key)) return;
+    this.scene.add
+      .image(tile.x + tile.width / 2, tile.y + tile.height / 2, key)
+      .setDepth(this.foregroundDepth);
+    this.renderedForegroundTiles.add(key);
   }
 }
