@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import mapJson from '../../../config/map.json';
 import { resolveAssetImagePath, type MapTileManifest, type MapTile } from '../../assets/loader';
+import { LOCKED_REGIONS } from './WorldCollision';
 
 const INITIAL_RADIUS = 1100;
 const STREAM_RADIUS = 1250;
@@ -41,6 +42,7 @@ export function preloadInitialMapTiles(scene: Phaser.Scene, manifest: MapTileMan
 export class MapTileRenderer {
   private readonly renderedTiles = new Set<string>();
   private readonly loadingTiles = new Set<string>();
+  private readonly lockedOverlays: Phaser.GameObjects.GameObject[] = [];
   private loaderActive = false;
 
   constructor(
@@ -55,6 +57,27 @@ export class MapTileRenderer {
         .image(tile.x + tile.width / 2, tile.y + tile.height / 2, tile.id)
         .setDepth(-1000);
       this.renderedTiles.add(tile.id);
+    }
+  }
+
+  renderLockedRegions(playerLevel: number): void {
+    for (const overlay of this.lockedOverlays) overlay.destroy();
+    this.lockedOverlays.length = 0;
+    for (const region of LOCKED_REGIONS) {
+      if (playerLevel >= region.unlock_level) continue;
+      const overlay = this.scene.add
+        .rectangle(region.x + region.width / 2, region.y + region.height / 2, region.width, region.height, 0xe8f5ff, 0.62)
+        .setDepth(9000);
+      if (this.scene.textures.exists('ui_locked_region_overlay')) {
+        overlay.setFillStyle(0xe8f5ff, 0.45);
+        const texture = this.scene.add
+          .image(region.x + region.width / 2, region.y + region.height / 2, 'ui_locked_region_overlay')
+          .setDisplaySize(region.width, region.height)
+          .setAlpha(0.72)
+          .setDepth(9001);
+        this.lockedOverlays.push(texture);
+      }
+      this.lockedOverlays.push(overlay);
     }
   }
 

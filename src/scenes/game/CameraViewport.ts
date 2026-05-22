@@ -3,5 +3,5 @@ export function chooseCameraZoom(): number {
   const isTouchViewport =
     nav !== undefined &&
     (nav.maxTouchPoints > 0 || /iPad|iPhone|Android/i.test(nav.userAgent));
-  return isTouchViewport ? 0.65 : 0.75;
+  return isTouchViewport ? 0.58 : 0.66;
 }

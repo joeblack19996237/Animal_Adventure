@@ -33,6 +33,8 @@ interface CollisionConfig {
   rects: RectZone[];
   circles: CircleZone[];
   polygons: PolygonZone[];
+  bridges?: RectZone[];
+  locked_regions?: Array<RectZone & { unlock_level: number }>;
 }
 
 interface NpcConfig {
@@ -53,6 +55,7 @@ const NPCS = npcsJson as NpcConfig[];
 const NPC_BLOCKER_RADIUS = 42;
 
 export const WORLD_BOUNDS = COLLISION_ZONES.bounds;
+export const LOCKED_REGIONS = COLLISION_ZONES.locked_regions ?? [];
 
 export function npcCollisionBlockers(): DynamicBlocker[] {
   return NPCS.map((npc) => ({
@@ -70,10 +73,21 @@ export function isMovementBlocked(
   dynamicBlockers: readonly DynamicBlocker[] = npcCollisionBlockers(),
 ): boolean {
   if (isOutsideBounds(x, y, playerRadius, COLLISION_ZONES.bounds)) return true;
+  if ((COLLISION_ZONES.bridges ?? []).some((bridge) => circleIntersectsRect(x, y, playerRadius, bridge))) return false;
   if (COLLISION_ZONES.rects.some((rect) => circleIntersectsRect(x, y, playerRadius, rect))) return true;
   if (COLLISION_ZONES.circles.some((circle) => circleIntersectsCircle(x, y, playerRadius, circle))) return true;
   if (COLLISION_ZONES.polygons.some((polygon) => circleIntersectsPolygon(x, y, playerRadius, polygon))) return true;
   return dynamicBlockers.some((blocker) => circleIntersectsCircle(x, y, playerRadius, blocker));
+}
+
+export function isPointInLockedRegion(x: number, y: number, playerLevel: number): boolean {
+  return LOCKED_REGIONS.some((region) => (
+    playerLevel < region.unlock_level &&
+    x >= region.x &&
+    y >= region.y &&
+    x <= region.x + region.width &&
+    y <= region.y + region.height
+  ));
 }
 
 function isOutsideBounds(x: number, y: number, radius: number, bounds: BoundsZone): boolean {

@@ -3,18 +3,7 @@ import { SCENE_KEYS } from './sceneKeys';
 import type { MapTileManifest } from '../assets/loader';
 import mapTilesJson from '../../config/map_tiles.json';
 import { WSClient } from '../net/WSClient';
-import {
-  isStateSyncMsg,
-  isQuestOfferMsg,
-  isQuestStartedMsg,
-  isInventoryUpdatedMsg,
-  isLevelUpMsg,
-  type StateSyncMsg,
-  type QuestOfferMsg,
-  type QuestStartedMsg,
-  type InventoryUpdatedMsg,
-  type LevelUpMsg,
-} from '../net/protocol';
+import { isStateSyncMsg, isQuestOfferMsg, isQuestStartedMsg, isInventoryUpdatedMsg, isLevelUpMsg, type StateSyncMsg, type QuestOfferMsg, type QuestStartedMsg, type InventoryUpdatedMsg, type LevelUpMsg } from '../net/protocol';
 import { BootstrapService } from '../services/BootstrapService';
 import { BackgroundMusicController, loadBackgroundMusic } from './game/BackgroundMusicController';
 import { chooseCameraZoom } from './game/CameraViewport';
@@ -27,27 +16,9 @@ import { PlayerMovementController } from './game/PlayerMovementController';
 import { QuestTimerController } from './game/QuestTimerController';
 import { findNearestNpc, findNearestWorldItem } from './game/WorldInteraction';
 import { WorldRenderer, loadWorldTextures } from './game/WorldRenderer';
-import { isMovementBlocked } from './game/WorldCollision';
-import {
-  isItemRecord,
-  isShopBootstrapItem,
-  toInventoryRecord,
-  toQuestRecord,
-  toWorldItemRecord,
-  type InventoryRecord,
-  type QuestOffer,
-  type QuestRecord,
-  type ShopBootstrapItem,
-  type WorldItemRecord,
-} from './game/gameRecords';
-import {
-  applyJoystickMove,
-  applyJoystickRelease,
-  applyKeyDown,
-  applyKeyUp,
-  createInputState,
-  type InputState,
-} from '../state/input';
+import { isMovementBlocked, isPointInLockedRegion } from './game/WorldCollision';
+import { isItemRecord, isShopBootstrapItem, toInventoryRecord, toQuestRecord, toWorldItemRecord, type InventoryRecord, type QuestOffer, type QuestRecord, type ShopBootstrapItem, type WorldItemRecord } from './game/gameRecords';
+import { applyJoystickMove, applyJoystickRelease, applyKeyDown, applyKeyUp, createInputState, type InputState } from '../state/input';
 
 const MAP_TILE_MANIFEST: MapTileManifest = mapTilesJson;
 const PLAYER_ID_KEY = 'animal_adventure_player_id';
@@ -62,7 +33,7 @@ export class GameScene extends Phaser.Scene {
   private readonly movement = new PlayerMovementController(
     PLAYER_SPEED,
     PLAYER_COLLISION_RADIUS,
-    (x, y, radius) => isMovementBlocked(x, y, radius),
+    (x, y, radius) => isMovementBlocked(x, y, radius) || isPointInLockedRegion(x, y, this.level),
   );
   private quests: QuestRecord[] = [];
   private worldItems: WorldItemRecord[] = [];
@@ -85,6 +56,7 @@ export class GameScene extends Phaser.Scene {
   private readonly questTimer = new QuestTimerController(
     (text, ratio) => this.dom.showQuestTimer(text, ratio),
     () => this.dom.hideQuestTimer(),
+    () => this.onQuestTimerExpired(),
   );
   private boundNpcInteract: ((e: Event) => void) | null = null;
   private boundQuestTurnIn: ((e: Event) => void) | null = null;
@@ -96,6 +68,7 @@ export class GameScene extends Phaser.Scene {
     super({ key: SCENE_KEYS.GAME });
     this.dom = new GameDomController({
       onAcceptQuest: () => this.onAcceptQuest(),
+      onCancelQuest: () => this.onCancelQuest(),
       onBuyItem: (itemId) => this.sendShopBuy(itemId),
       onUseItem: (itemId) => this.sendUseItem(itemId),
       onTurnInQuest: () => {
@@ -106,18 +79,17 @@ export class GameScene extends Phaser.Scene {
     });
     this.joystick = new JoystickController(
       JOYSTICK_RADIUS,
-      (dx, dy) => {
-        this.inputState = applyJoystickMove(this.inputState, dx, dy);
-      },
-      () => {
-        this.inputState = applyJoystickRelease(this.inputState);
-      },
+      (dx, dy) => { this.inputState = applyJoystickMove(this.inputState, dx, dy); },
+      () => { this.inputState = applyJoystickRelease(this.inputState); },
     );
   }
   preload(): void {
     preloadInitialMapTiles(this, MAP_TILE_MANIFEST);
     loadWorldTextures(this);
     loadBackgroundMusic(this);
+    if (!this.textures.exists('ui_locked_region_overlay')) {
+      this.load.image('ui_locked_region_overlay', '/assets/images/UI/ui_locked_region_overlay.png');
+    }
   }
   create(): void {
     this.mapRenderer = new MapTileRenderer(this, MAP_TILE_MANIFEST);
@@ -181,7 +153,7 @@ export class GameScene extends Phaser.Scene {
     if (type === 'item_picked_up') { this.handleItemPickedUp(msg); return; }
     if (type === 'quest_completed') { this.handleQuestCompleted(msg); return; }
     if (type === 'quest_failed') { this.handleQuestFailed(msg); return; }
-    if (type === 'shop_purchase_ok' || type === 'shop_result') { this.handleShopResult(msg); return; }
+    if (type === 'shop_purchase_ok' || type === 'shop_result' || type === 'insufficient_funds' || type === 'item_locked') { this.handleShopResult(msg); return; }
     if (type === 'item_used') { this.handleItemUsed(msg); return; }
   }
 
@@ -193,6 +165,10 @@ export class GameScene extends Phaser.Scene {
     this.worldRenderer?.updatePlayerFromServer(p);
     if (typeof p['coins'] === 'number') this.coins = p['coins'];
     if (typeof p['level'] === 'number') this.level = p['level'];
+    this.mapRenderer?.renderLockedRegions(this.level);
+    if (typeof p['name'] === 'string' && typeof p['character_id'] === 'string') {
+      this.dom.updatePlayerProfile(p['name'], p['character_id']);
+    }
 
     this.quests = (msg.quests as unknown[]).map(toQuestRecord).filter((q): q is QuestRecord => q !== null);
     this.worldItems = (msg.world_items as unknown[]).map(toWorldItemRecord).filter((w): w is WorldItemRecord => w !== null);
@@ -213,20 +189,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     const failedQuest = this.quests.find((q) => q.status === 'failed' && q.cooldown_until !== null);
-    if (failedQuest !== undefined && failedQuest.cooldown_until !== null) {
-      this.dom.showQuestCooldown(failedQuest.cooldown_until);
-    } else {
-      this.dom.hideQuestCooldown();
-    }
+    if (failedQuest !== undefined && failedQuest.cooldown_until !== null) this.dom.showQuestCooldown(failedQuest.cooldown_until);
+    else this.dom.hideQuestCooldown();
 
     this.updateCoinsDisplay();
     this.updateLevelDisplay();
+    this.dom.updatePlayerMapPosition(this.movement.getX(), this.movement.getY());
     this.updateInventoryPanel();
     this.renderWorldItems();
     this.updateGameStore();
   }
 
   private handleQuestOffer(msg: QuestOfferMsg): void {
+    if (this.activeQuestId !== null) return;
     this.pendingQuestOffer = {
       questId: msg.quest_id,
       npcId: msg.npc_id,
@@ -310,6 +285,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleShopResult(msg: Record<string, unknown>): void {
+    if (msg['type'] === 'insufficient_funds') {
+      this.dom.showShopMessage("Sorry, you don't have enough money");
+      return;
+    }
+    if (msg['type'] === 'item_locked') {
+      this.dom.showShopMessage("Sorry, you don't have enough money or you need to upgrade your level first");
+      return;
+    }
     if (typeof msg['coins_balance'] === 'number') {
       this.coins = msg['coins_balance'];
       this.updateCoinsDisplay();
@@ -386,6 +369,17 @@ export class GameScene extends Phaser.Scene {
     this.pendingQuestOffer = null;
   }
 
+  private onCancelQuest(): void {
+    this.pendingQuestOffer = null;
+    this.npcAutoTrigger.reset();
+  }
+
+  private onQuestTimerExpired(): void {
+    if (this.activeQuestId === null) return;
+    this.dom.setTurnInQuest(null);
+    this.dom.showQuestFailed();
+  }
+
   private sendNpcInteract(npcId: string): void {
     if (this.wsClient !== null) this.wsClient.send({ type: 'npc_interact_request', player_id: this.playerId, npc_id: npcId, x: this.movement.getX(), y: this.movement.getY() });
   }
@@ -406,30 +400,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateGameStore(): void {
-    publishGameStore({
-      ready: this.sceneReady,
-      stateSyncReceived: this.movement.hasStateSyncReceived(),
-      wsOpen: this.wsClient?.isOpen() ?? false,
-      quests: this.quests.slice(),
-      worldItems: this.worldItems.slice(),
-      inventory: this.inventory.slice(),
-      equipment: this.equipment.slice(),
-      player: { coins: this.coins, level: this.level },
-    });
+    publishGameStore({ ready: this.sceneReady, stateSyncReceived: this.movement.hasStateSyncReceived(), wsOpen: this.wsClient?.isOpen() ?? false,
+      quests: this.quests.slice(), worldItems: this.worldItems.slice(), inventory: this.inventory.slice(), equipment: this.equipment.slice(),
+      player: { coins: this.coins, level: this.level } });
   }
 
   private registerGameEventListeners(): void {
     this.boundNpcInteract = (e: Event) => {
       const detail = (e as CustomEvent<Record<string, unknown>>).detail;
       const npcId = typeof detail?.['npc_id'] === 'string' ? detail['npc_id'] : '';
-      if (npcId && this.wsClient !== null) {
-        this.wsClient.send({ type: 'npc_interact_request', player_id: this.playerId, npc_id: npcId });
-      }
+      if (npcId && this.wsClient !== null) this.wsClient.send({ type: 'npc_interact_request', player_id: this.playerId, npc_id: npcId });
     };
     this.boundQuestTurnIn = (e: Event) => {
-      const detail = (e as CustomEvent<Record<string, unknown>>).detail;
-      const questId = typeof detail?.['quest_id'] === 'string' ? detail['quest_id'] : '';
-      if (questId) this.sendQuestTurnIn(questId);
+      const questId = (e as CustomEvent<Record<string, unknown>>).detail?.['quest_id'];
+      if (typeof questId === 'string') this.sendQuestTurnIn(questId);
     };
     this.boundItemPickup = (e: Event) => {
       const detail = (e as CustomEvent<Record<string, unknown>>).detail;
@@ -469,11 +453,18 @@ export class GameScene extends Phaser.Scene {
       this.movement.isMoving(),
     );
     this.mapRenderer?.ensureTilesAround(this.movement.getX(), this.movement.getY());
+    this.dom.updatePlayerMapPosition(this.movement.getX(), this.movement.getY());
     this.npcAutoTrigger.tick(
       this.movement.getX(),
       this.movement.getY(),
       this.pendingQuestOffer === null && this.activeQuestId === null,
       (npcId) => this.sendNpcInteract(npcId),
+      () => {
+        if (this.pendingQuestOffer !== null) {
+          this.pendingQuestOffer = null;
+          this.dom.hideQuestDialog();
+        }
+      },
     );
   }
 

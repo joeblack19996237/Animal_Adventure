@@ -10,15 +10,29 @@
       "id": "western_fence_line",
       "x": 0,
       "y": 2380,
-      "width": 1040,
-      "height": 1960
+      "width": 720,
+      "height": 1620
     },
     {
       "id": "eastern_tree_cluster",
-      "x": 4470,
-      "y": 2760,
-      "width": 820,
-      "height": 1280
+      "x": 4660,
+      "y": 2860,
+      "width": 520,
+      "height": 920
+    },
+    {
+      "id": "northwest_building_cluster",
+      "x": 910,
+      "y": 2360,
+      "width": 560,
+      "height": 520
+    },
+    {
+      "id": "spawn_tree_trunk",
+      "x": 4020,
+      "y": 3500,
+      "width": 280,
+      "height": 420
     }
   ],
   "circles": [
@@ -39,6 +53,35 @@
         [260, 6140],
         [0, 6060]
       ]
+    },
+    {
+      "id": "central_river",
+      "points": [
+        [1280, 5050],
+        [2280, 4960],
+        [2580, 5460],
+        [1710, 5940],
+        [1160, 5660]
+      ]
+    }
+  ],
+  "bridges": [
+    {
+      "id": "central_bridge",
+      "x": 2020,
+      "y": 5100,
+      "width": 520,
+      "height": 520
+    }
+  ],
+  "locked_regions": [
+    {
+      "id": "playground",
+      "unlock_level": 3,
+      "x": 3640,
+      "y": 0,
+      "width": 1790,
+      "height": 2520
     }
   ]
 }

@@ -30,6 +30,11 @@ def is_world_collision_blocked(x: float, y: float, player_radius: float = 0.0) -
     bounds = config["bounds"]
     if _outside_bounds(x, y, player_radius, bounds):
         return True
+    if any(
+        _circle_intersects_rect(x, y, player_radius, bridge)
+        for bridge in config.get("bridges", [])
+    ):
+        return False
     if any(_circle_intersects_rect(x, y, player_radius, rect) for rect in config["rects"]):
         return True
     if any(_circle_intersects_circle(x, y, player_radius, circle) for circle in config["circles"]):

@@ -19,7 +19,6 @@ export function loadBackgroundMusic(scene: Phaser.Scene): void {
 
 export class BackgroundMusicController {
   private current: Phaser.Sound.BaseSound | null = null;
-  private index = 0;
   private started = false;
 
   constructor(
@@ -40,14 +39,9 @@ export class BackgroundMusicController {
   }
 
   private playCurrentTrack(): void {
-    const track = BGM_TRACKS[this.index];
-    const sound = this.scene.sound.add(track.key, { volume: this.volume });
+    const track = BGM_TRACKS[0];
+    const sound = this.scene.sound.add(track.key, { volume: this.volume, loop: true });
     this.current = sound;
-    sound.once('complete', () => {
-      sound.destroy();
-      this.index = (this.index + 1) % BGM_TRACKS.length;
-      if (this.started) this.playCurrentTrack();
-    });
     sound.play();
   }
 }

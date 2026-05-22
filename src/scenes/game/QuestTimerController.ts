@@ -8,6 +8,7 @@ export class QuestTimerController {
   constructor(
     private readonly render: (text: string, ratio: number) => void,
     private readonly hide: () => void,
+    private readonly onExpired: () => void = () => undefined,
   ) {}
 
   start(expiresAtISO: string, serverTimeISO: string | null, serverTimeOffsetMs: number): void {
@@ -38,6 +39,10 @@ export class QuestTimerController {
     const remainingMs = this.deadlineMs - Date.now();
     const ratio = this.totalMs === null ? 1 : Math.max(0, Math.min(1, remainingMs / this.totalMs));
     this.render(formatCountdown(remainingMs), ratio);
+    if (remainingMs <= 0) {
+      this.stop();
+      this.onExpired();
+    }
   }
 
   private clearIntervalOnly(): void {

@@ -41,8 +41,10 @@ export function loadWorldTextures(scene: Phaser.Scene): void {
 
 export class WorldRenderer {
   private playerSprite: Phaser.GameObjects.Image | null = null;
+  private playerShadow: Phaser.GameObjects.Ellipse | null = null;
   private playerCharacterId = DEFAULT_CHARACTER_ID;
   private readonly npcSprites: Phaser.GameObjects.Image[] = [];
+  private readonly npcShadows: Phaser.GameObjects.Ellipse[] = [];
   private readonly worldItemSprites = new Map<string, Phaser.GameObjects.Image>();
   private hasCenteredCamera = false;
 
@@ -54,8 +56,12 @@ export class WorldRenderer {
       const sprite = this.scene.add
         .image(npc.x, npc.y, npc.asset_id)
         .setDepth(npc.y)
-        .setScale(0.45)
+        .setScale(0.36)
         .setInteractive({ useHandCursor: true });
+      const shadow = this.scene.add
+        .ellipse(npc.x, npc.y + 8, 76, 24, 0x1f2a1f, 0.22)
+        .setDepth(npc.y - 1);
+      this.npcShadows.push(shadow);
       sprite.on('pointerdown', () => onNpcInteract(npc.id));
       this.npcSprites.push(sprite);
     }
@@ -92,6 +98,7 @@ export class WorldRenderer {
     this.playerSprite.setFlipX(flipX);
     this.playerSprite.setPosition(x, y);
     this.playerSprite.setDepth(y + 10);
+    this.playerShadow?.setPosition(x, y + 8).setDepth(y + 1);
   }
 
   renderWorldItems(
@@ -124,7 +131,9 @@ export class WorldRenderer {
 
   destroy(): void {
     this.playerSprite?.destroy();
+    this.playerShadow?.destroy();
     for (const sprite of this.npcSprites) sprite.destroy();
+    for (const shadow of this.npcShadows) shadow.destroy();
     for (const sprite of this.worldItemSprites.values()) sprite.destroy();
     this.worldItemSprites.clear();
   }
@@ -133,6 +142,7 @@ export class WorldRenderer {
     if (this.playerSprite !== null) return;
     const { key, flipX } = this.resolveCharacterTexture(this.playerCharacterId, 'front');
     this.playerSprite = this.scene.add.image(0, 0, key).setDepth(10000);
+    this.playerShadow = this.scene.add.ellipse(0, 0, 82, 26, 0x1f2a1f, 0.24).setDepth(9999);
     this.playerSprite.setFlipX(flipX);
     this.applyCharacterScale(this.playerCharacterId);
     this.scene.cameras.main.startFollow(this.playerSprite, true, 0.2, 0.2);

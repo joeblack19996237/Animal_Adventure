@@ -180,15 +180,25 @@ class TestCharacterStateMappings:
         )
 
     @pytest.mark.parametrize("char_id", MVP_CHARACTER_IDS)
-    def test_walk_direction_values_are_strings(
+    def test_walk_direction_values_are_strings_or_frame_lists(
         self, char_id: str, character_by_id: dict[str, dict[str, Any]]
     ) -> None:
         walk = character_by_id[char_id]["states"]["walk"]
         for direction in WALK_REQUIRED_DIRECTIONS:
             value = walk[direction]
-            assert isinstance(value, str) and value.strip(), (
-                f"Character {char_id!r} walk.{direction} must be a non-empty string"
-            )
+            if isinstance(value, str):
+                assert value.strip(), (
+                    f"Character {char_id!r} walk.{direction} must be a non-empty string"
+                )
+            else:
+                assert isinstance(value, list) and value, (
+                    f"Character {char_id!r} walk.{direction} must be a non-empty string "
+                    "or a non-empty list of frame asset ids"
+                )
+                assert all(isinstance(frame, str) and frame.strip() for frame in value), (
+                    f"Character {char_id!r} walk.{direction} frame list must contain "
+                    "only non-empty strings"
+                )
 
 
 class TestCharacterNumericFields:
@@ -296,6 +306,10 @@ class TestCharacterAssetReferences:
             for value in state_mapping.values():
                 if isinstance(value, str):
                     asset_ids.append(value)
+                elif isinstance(value, list):
+                    asset_ids.extend(
+                        frame for frame in value if isinstance(frame, str)
+                    )
         return asset_ids
 
     @pytest.mark.parametrize("char_id", MVP_CHARACTER_IDS)
@@ -330,6 +344,12 @@ class TestCharacterAssetReferences:
                         errors.append(
                             f"{char_id}.states.{state_name}.{direction}={value!r}"
                         )
+                    elif isinstance(value, list):
+                        for frame in value:
+                            if isinstance(frame, str) and frame not in assets_manifest:
+                                errors.append(
+                                    f"{char_id}.states.{state_name}.{direction}={frame!r}"
+                                )
         assert not errors, (
             "Character state asset ids missing from config/assets.json:\n"
             + "\n".join(errors)

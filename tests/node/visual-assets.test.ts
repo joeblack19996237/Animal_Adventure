@@ -25,7 +25,9 @@ describe('visual asset integration', () => {
   });
 
   it('uses image-based HUD, menu, panels, quest dialog, and timer bars', () => {
-    const source = readFileSync(join(process.cwd(), 'src/scenes/game/GameDomController.ts'), 'utf-8');
+    const source =
+      readFileSync(join(process.cwd(), 'src/scenes/game/GameDomController.ts'), 'utf-8') +
+      readFileSync(join(process.cwd(), 'src/scenes/game/GameDomElements.ts'), 'utf-8');
     expect(source).toContain('ui_currency_icon.png');
     expect(source).toContain('ui_level_badge.png');
     expect(source).toContain('V2_Resources/UI_frame.png');
@@ -38,5 +40,23 @@ describe('visual asset integration', () => {
     expect(source).toContain('ui_confirm_button.png');
     expect(source).toContain('ui_task_timer_bar_green.png');
     expect(source).toContain('ui_task_timer_bar_red.png');
+    expect(source).toContain('ui_close_x_button.png');
+    expect(source).toContain('game_map_full.png');
+    expect(source).toContain('map-player-marker');
+    expect(source).toContain('player-profile');
+    expect(source).not.toContain('Friends list is empty');
+    expect(source).not.toContain("body.textContent = 'Spawn'");
+    expect(source).not.toContain("createTextButton('Close')");
+  });
+
+  it('keeps quest failure as a clear image notice without visible text', () => {
+    const source = readFileSync(join(process.cwd(), 'src/scenes/game/GameDomController.ts'), 'utf-8');
+    expect(source).toContain('ui_task_fail_notice.png');
+    expect(source).toContain("this.questFailedEl.textContent = ''");
+  });
+
+  it('uses looped background music to avoid playlist gaps', () => {
+    const source = readFileSync(join(process.cwd(), 'src/scenes/game/BackgroundMusicController.ts'), 'utf-8');
+    expect(source).toContain('loop: true');
   });
 });
