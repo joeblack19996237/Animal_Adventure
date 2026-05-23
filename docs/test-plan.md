@@ -35,6 +35,7 @@ usable across laptop, tablet, and small browser viewports.
 - `test_asset_manifest_paths_exist`: every MVP logical asset path maps to an existing file under `assets/`.
 - `test_map_tiles_manifest_matches_files`: `config/map_tiles.json` covers prepared map tiles under `assets/images/MapTiles/`.
 - `test_map_tiles_coordinate_coverage`: tile coordinates stay within the map, cover `0..5430` by `0..7240` without gaps or overlap, and use MVP edge dimensions of `310px` by `72px`.
+- `foreground tile asset contract`: every `config/foreground_tiles.json` entry references an existing base map tile, points at an existing PNG under `assets/images/ForegroundTiles/`, matches the base tile dimensions, has an alpha channel, and remains mostly transparent.
 - `test_character_config_mappings`: character direction/state mappings, scale, anchor, and collision radius validate.
 
 ## Phase 4 Tests — Backend Foundation
@@ -53,6 +54,9 @@ usable across laptop, tablet, and small browser viewports.
 - `phaser_boot_has_required_scenes`: Boot, Preload, Game, and UI scenes are registered.
 - `responsive_canvas_fits_viewport`: laptop, iPad, and small browser dimensions fit.
 - `asset_manifest_uses_map_tiles`: map rendering resolves `/assets/images/MapTiles/...` and does not request `/assets/images/Items/game_map_full.png` as a single texture.
+- `asset_manifest_uses_map_tiles`: foreground tile load entries resolve `/assets/images/ForegroundTiles/...`, use `foreground_` texture keys, and support sparse manifests without requiring all 48 map tiles.
+- `game_scene_movement_structure`: `GameScene` preloads initial foreground tiles and passes the foreground manifest to `MapTileRenderer`.
+- `visual_asset_integration`: Phaser uses pixel-friendly map compositing settings: `pixelArt`, `roundPixels`, and `antialias: false`.
 - `input_ui_state`: keyboard, touch, interact, shop, inventory, and reconnect state are testable without a live Phaser canvas.
 - `@phase5-smoke`: Vite-served app loads, canvas is nonblank, and core assets do not 404.
 

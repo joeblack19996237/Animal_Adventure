@@ -58,6 +58,7 @@ FastAPI responsibilities:
 - Frontend loads PNG/audio/map/UI only through `/assets/...`.
 - The full map source image remains at `/assets/images/Items/game_map_full.png`, but the client must render the prepared map tiles from `/assets/images/MapTiles/` instead of loading the full map as a single Phaser texture.
 - `config/map_tiles.json` stores tile metadata. Tile `path` values are relative to `/assets/images/`; for example `MapTiles/map_tile_0_0.png` resolves to `/assets/images/MapTiles/map_tile_0_0.png`.
+- `config/foreground_tiles.json` stores a sparse list of transparent foreground occlusion overlays. Each entry references a base `map_tiles.json` tile id and a PNG under `/assets/images/ForegroundTiles/`. Missing foreground entries are valid and mean that map tile has no overlay.
 - Backend and frontend store/use logical asset ids, not file blobs or hardcoded gameplay references to raw filenames.
 - `config/assets.json` is the single asset manifest for logical id -> `/assets/...` path resolution.
 - `config/characters.json` is the single source for selectable character ids, direction/state asset mappings, scale, anchor, and collision radius. Current MVP character assets are split PNG files, not uniform 64-frame sprite sheets.
@@ -81,7 +82,7 @@ FastAPI responsibilities:
 
 - Boot/Preload: critical asset and config loading.
 - Login/CharacterSelect: player id/name and MVP character selection.
-- GameScene: Phaser rendering, world background, player/NPC/item sprites.
+- GameScene: Phaser rendering, world background tiles, sparse foreground occlusion tiles, player/NPC/item sprites.
 - UIScene or UI layer: HUD, dialogs, shop, inventory, reconnect overlay.
 - Network client: REST bootstrap + WebSocket auto reconnect. Bootstrap config must succeed before `GameScene` is created or the gameplay WebSocket is opened.
 - Game state: local state snapshot and server message application.
@@ -219,6 +220,10 @@ Accepts client diagnostics and behavior events. Server must validate size and ev
 - Map tile manifest: `config/map_tiles.json`
 - Map tile directory: `/assets/images/MapTiles/`
 - Map tile grid: `6 x 8`, 48 images, default tile size `1024 x 1024`; right edge tiles are `310px` wide and bottom edge tiles are `72px` high.
+- Foreground tile manifest: `config/foreground_tiles.json`
+- Foreground tile directory: `/assets/images/ForegroundTiles/`
+- Foreground tile loading: sparse and map-tile aligned. Foreground tile keys use `foreground_${baseTileId}` and render at the same world position as the corresponding background tile.
+- Foreground tile depth: `map_height + 500`; locked-region overlays render above foreground at `map_height + 1000` and `map_height + 1001`.
 - Map size: `5430 x 7240`
 - Spawn: `{ "x": 2715, "y": 3620 }`
 - NPC interaction radius: `160px`

@@ -24,6 +24,7 @@ Player opens browser -> enters name -> application creates or loads the player -
 - A new player chooses an MVP character during first creation.
 - A returning player loads the existing character and does not reselect character in MVP.
 - The map uses `assets/images/Items/game_map_full.png` as the source image, but the MVP client renders prepared 1024px map tiles from `assets/images/MapTiles/` using `config/map_tiles.json`.
+- The frontend may render sparse foreground occlusion tiles from `assets/images/ForegroundTiles/` using `config/foreground_tiles.json`. These transparent PNG overlays are optional per map tile and render above world sprites so tall scenery can cover players, NPCs, and quest items.
 - The map uses coordinate-driven interaction data, not a fine-grained tilemap. MVP hotspot data is intentionally empty because Portal scenery is non-interactive.
 - Player movement, camera follow, and full-map bounds are supported.
 - MVP allows full-map touring/observation, but only Spawn-area NPCs, Spawn-area quest items, shop, online player visibility, and preset chat are interactive.
@@ -61,6 +62,7 @@ Player opens browser -> enters name -> application creates or loads the player -
 - Initial load prioritizes map, player, NPCs, and core UI; music and non-critical assets load later.
 - MVP uses the existing `assets/music/bgm-1.m4a` through `assets/music/bgm-4.m4a` as looping background music. Dedicated SFX are out of scope for MVP.
 - Existing PNG assets should render clearly through Phaser scaling.
+- Foreground occlusion PNGs must match the dimensions of their corresponding base map tile, include an alpha channel, and keep non-occlusion pixels fully transparent.
 - If the FastAPI process crashes, a local watchdog script restarts it.
 - If the whole machine reboots, recovery depends on an OS-level startup task documented in Ops.
 - SQLite uses WAL, short transactions, periodic checkpointing, and cleanup policies.
@@ -97,6 +99,7 @@ Player opens browser -> enters name -> application creates or loads the player -
 - The frontend derives the WebSocket URL from `window.location.origin` by mapping `http://` to `ws://` and `https://` to `wss://`, unless `VITE_WS_URL` is explicitly configured.
 - Chat uses preset phrase ids only.
 - Map uses a full-size world coordinate system with tiled background rendering and coordinate-driven NPC/item/region data. MVP hotspot data remains empty.
+- Foreground occlusion uses the same full-size world coordinate system as background map tiles. A missing foreground tile means no overlay for that map tile and must not produce a failed asset request.
 - MVP world bounds are the full map rectangle. Gameplay interaction zones are limited to Spawn-area NPCs/items and global UI; non-Spawn landmarks are scenery until V2.
 - WebSocket broadcast rate is 10Hz.
 - The frontend must throttle outbound `player_move` messages to at most 20Hz.

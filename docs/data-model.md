@@ -234,6 +234,35 @@ MVP example shape:
 }
 ```
 
+### config/foreground_tiles.json
+
+Contains sparse foreground occlusion tile metadata for transparent overlays that render above world sprites. This config is frontend-rendering metadata only; it does not change collision, hotspots, NPC/item coordinates, or backend gameplay state.
+
+- `tiles`: sparse list of foreground tile records.
+- Each record has `tile_id`, matching an `id` in `config/map_tiles.json`.
+- Each record has `path`, relative to `/assets/images/`. Example: `ForegroundTiles/map_foreground_tile_0_0.png` resolves to `/assets/images/ForegroundTiles/map_foreground_tile_0_0.png`.
+
+Rules:
+
+- Foreground tile entries are optional per map tile. Missing entries are valid and must not trigger asset requests.
+- Every foreground PNG must exist on disk, have an alpha channel, and have the exact same `width` and `height` as the corresponding base map tile.
+- Non-occlusion pixels must be transparent. Tests enforce that most pixels remain transparent so accidental full-background exports are rejected.
+- Foreground tiles use the corresponding base tile's world `x`, `y`, `width`, and `height`; they do not define independent coordinates.
+- Foreground tiles are not logical gameplay assets in `config/assets.json`; they are render-layer assets tied to `config/map_tiles.json`.
+
+MVP example shape:
+
+```json
+{
+  "tiles": [
+    {
+      "tile_id": "map_tile_0_0",
+      "path": "ForegroundTiles/map_foreground_tile_0_0.png"
+    }
+  ]
+}
+```
+
 ### config/npcs.json
 
 Contains:
