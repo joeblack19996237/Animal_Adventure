@@ -1,3 +1,5 @@
+import { isTouchDevice } from '../../layout/device';
+
 export class JoystickController {
   private el: HTMLDivElement | null = null;
   private active = false;
@@ -13,11 +15,14 @@ export class JoystickController {
   create(): void {
     const base = document.createElement('div');
     base.id = 'joystick-base';
+    const touch = isTouchDevice();
     base.style.cssText =
       `position:fixed;bottom:60px;left:60px;` +
       `width:${this.radius * 2}px;height:${this.radius * 2}px;` +
-      `border-radius:50%;background:rgba(255,255,255,0.3);` +
-      `border:2px solid rgba(255,255,255,0.6);touch-action:none;z-index:100;`;
+      `border-radius:50%;touch-action:none;z-index:100;` +
+      (touch
+        ? 'display:block;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);'
+        : 'display:none;background:transparent;border:0;pointer-events:none;');
     document.body.appendChild(base);
     this.el = base;
 

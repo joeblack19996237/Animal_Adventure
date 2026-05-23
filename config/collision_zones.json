@@ -33,6 +33,27 @@
       "y": 3500,
       "width": 280,
       "height": 420
+    },
+    {
+      "id": "northwest_house_wall",
+      "x": 720,
+      "y": 2140,
+      "width": 720,
+      "height": 460
+    },
+    {
+      "id": "southwest_water_channel",
+      "x": 840,
+      "y": 5060,
+      "width": 340,
+      "height": 760
+    },
+    {
+      "id": "northern_stone_structure",
+      "x": 2380,
+      "y": 580,
+      "width": 640,
+      "height": 520
     }
   ],
   "circles": [

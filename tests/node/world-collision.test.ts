@@ -22,6 +22,12 @@ describe('WorldCollision', () => {
     expect(isMovementBlocked(420, 5400, 38, [])).toBe(true);
   });
 
+  it('blocks screenshot-backed building and water coordinates', () => {
+    expect(isMovementBlocked(1080, 2340, 38, [])).toBe(true);
+    expect(isMovementBlocked(1010, 5440, 38, [])).toBe(true);
+    expect(isMovementBlocked(2700, 840, 38, [])).toBe(true);
+  });
+
   it('allows bridge movement through a blocked river polygon', () => {
     expect(isMovementBlocked(2260, 5260, 38, [])).toBe(false);
   });

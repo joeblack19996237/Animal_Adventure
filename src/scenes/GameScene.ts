@@ -405,7 +405,13 @@ export class GameScene extends Phaser.Scene {
   private updateGameStore(): void {
     publishGameStore({ ready: this.sceneReady, stateSyncReceived: this.movement.hasStateSyncReceived(), wsOpen: this.wsClient?.isOpen() ?? false,
       quests: this.quests.slice(), worldItems: this.worldItems.slice(), inventory: this.inventory.slice(), equipment: this.equipment.slice(),
-      player: { coins: this.coins, level: this.level } });
+      player: {
+        coins: this.coins,
+        level: this.level,
+        x: this.movement.getX(),
+        y: this.movement.getY(),
+        direction: this.movement.getDirection(),
+      } });
   }
 
   private registerGameEventListeners(): void {

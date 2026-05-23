@@ -35,10 +35,21 @@ describe('game scene movement structure', () => {
 
   it('uses responsive camera zoom and removes NPC text labels from world rendering', () => {
     const sceneSource = readFileSync(join(process.cwd(), 'src/scenes/GameScene.ts'), 'utf-8');
+    const cameraSource = readFileSync(join(process.cwd(), 'src/scenes/game/CameraViewport.ts'), 'utf-8');
     const rendererSource = readFileSync(join(process.cwd(), 'src/scenes/game/WorldRenderer.ts'), 'utf-8');
     expect(sceneSource).toContain('this.cameras.main.setZoom(chooseCameraZoom());');
+    expect(cameraSource).toContain("import { isTouchDevice } from '../../layout/device';");
+    expect(cameraSource).toContain('return isTouchDevice() ? 0.58 : 0.66;');
     expect(rendererSource).not.toContain('.text(');
     expect(rendererSource).not.toContain('E / Click');
+  });
+
+  it('uses per-tile foreground depth while keeping locked overlays map-height based', () => {
+    const source = readFileSync(join(process.cwd(), 'src/scenes/game/MapTileRenderer.ts'), 'utf-8');
+    expect(source).toContain('export function foregroundDepthForTile(tile: MapTile): number');
+    expect(source).toContain('return tile.y + tile.height + 10;');
+    expect(source).toContain('this.lockedOverlayDepth = this.manifest.map_height + 1000;');
+    expect(source).toContain('.setDepth(this.lockedOverlayDepth + 1)');
   });
 
   it('loads background music and registers automatic NPC proximity triggers', () => {

@@ -1,5 +1,7 @@
 import { characterImage, itemImage } from './GameDomAssets';
 import { createCloseButton, createGrid, createHudStat, createPopup, createTextButton } from './GameDomElements';
+import { isTouchDevice } from '../../layout/device';
+import { menuButtonSize, panelLayout, questDialogWidth } from '../../layout/gameUiLayout';
 
 const NOTIFICATION_AUTO_HIDE_MS = 10_000;
 const QUEST_DECISION_DELAY_MS = 10_000;
@@ -58,6 +60,7 @@ export class GameDomController {
   private coinsEl: HTMLSpanElement | null = null;
   private levelEl: HTMLSpanElement | null = null;
   private readonly panels = new Map<PanelName, HTMLDivElement>();
+  private readonly isTouch = isTouchDevice();
 
   constructor(private readonly callbacks: GameDomCallbacks) {}
 
@@ -282,9 +285,10 @@ export class GameDomController {
   private createMenuEl(): void {
     const menu = document.createElement('div');
     menu.id = 'game-menu';
+    const size = menuButtonSize(this.isTouch);
     menu.style.cssText =
-      "position:fixed;right:14px;bottom:14px;z-index:90;display:grid;grid-template-columns:repeat(4,88px);gap:10px;" +
-      "padding:18px;background:url('/assets/images/V2_Resources/UI_frame.png') center/100% 100% no-repeat;";
+      `position:fixed;right:14px;bottom:14px;z-index:90;display:grid;grid-template-columns:repeat(4,${size}px);gap:10px;` +
+      'padding:0;background:transparent;';
     const buttons: [PanelName, string, string][] = [
       ['friends', '/assets/images/UI/ui_menu_friends_icon.png', 'Friends'],
       ['shop', '/assets/images/UI/ui_menu_shop_icon.png', 'Shop'],
@@ -297,8 +301,7 @@ export class GameDomController {
       btn.ariaLabel = label;
       btn.dataset['hud'] = panel;
       btn.style.cssText =
-        `width:88px;height:88px;border:0;border-radius:14px;cursor:pointer;background:rgba(255,255,255,.08) url('${image}') center/92% 92% no-repeat;` +
-        'box-shadow:0 5px 0 rgba(55,42,22,.28);';
+        `width:${size}px;height:${size}px;border:0;border-radius:0;cursor:pointer;background:transparent url('${image}') center/contain no-repeat;`;
       btn.addEventListener('click', () => this.togglePanel(panel));
       menu.appendChild(btn);
     }
@@ -311,16 +314,16 @@ export class GameDomController {
     dialog.dataset['ui'] = 'quest';
     dialog.dataset['testid'] = 'quest-dialog';
     dialog.style.cssText =
-      "display:none;position:fixed;left:50%;bottom:6%;transform:translateX(-50%);width:min(540px,78vw);min-height:156px;z-index:220;" +
-      "background:url('/assets/images/UI/ui_dialog_box.png') center/100% 100% no-repeat;padding:28px 46px 26px;color:#50321d;text-align:center;font-family:Fredoka,system-ui,sans-serif;";
+      `display:none;position:fixed;left:50%;bottom:6%;transform:translateX(-50%);width:${questDialogWidth(this.isTouch)};min-height:166px;z-index:220;` +
+      "box-sizing:border-box;background:url('/assets/images/UI/ui_dialog_box.png') center/contain no-repeat;padding:38px 72px 34px;color:#50321d;text-align:center;font-family:Fredoka,system-ui,sans-serif;";
     this.questDialogTitleEl = document.createElement('h3');
-    this.questDialogTitleEl.style.cssText = 'margin:0 0 8px;font-size:22px;line-height:1.08;color:#4c2d19;';
+    this.questDialogTitleEl.style.cssText = 'margin:0 auto 8px;max-width:100%;font-size:22px;line-height:1.08;color:#4c2d19;overflow-wrap:anywhere;';
     dialog.appendChild(this.questDialogTitleEl);
     this.questDialogRewardsEl = document.createElement('p');
-    this.questDialogRewardsEl.style.cssText = 'margin:0;font-size:16px;color:#6d4a2d;';
+    this.questDialogRewardsEl.style.cssText = 'margin:0 auto;font-size:16px;color:#6d4a2d;max-width:100%;overflow-wrap:anywhere;';
     dialog.appendChild(this.questDialogRewardsEl);
     this.questDecisionEl = document.createElement('div');
-    this.questDecisionEl.style.cssText = 'display:none;justify-content:center;gap:20px;margin-top:14px;';
+    this.questDecisionEl.style.cssText = 'display:none;justify-content:center;gap:20px;margin-top:14px;max-width:100%;';
     const cancelBtn = this.createImageButton('/assets/images/UI/ui_cancel_button.png', 'Cancel');
     cancelBtn.addEventListener('click', () => {
       this.hideQuestDialog();
@@ -384,14 +387,16 @@ export class GameDomController {
     panel.id = name === 'shop' ? 'shop-panel' : name === 'inventory' ? 'inventory-panel' : `${name}-panel`;
     panel.dataset['ui'] = name;
     panel.dataset['testid'] = `${name}-panel`;
+    const layout = panelLayout(name, this.isTouch);
     panel.style.cssText =
-      `display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:210;width:min(560px,86vw);min-height:360px;` +
-      `background:url('${image}') center/100% 100% no-repeat;padding:58px 54px 42px;color:#4c2d19;font-family:Fredoka,system-ui,sans-serif;`;
+      `display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:210;width:${layout.width};min-height:${layout.minHeight};` +
+      `box-sizing:border-box;background:url('${image}') center/contain no-repeat;padding:${layout.padding};color:#4c2d19;font-family:Fredoka,system-ui,sans-serif;`;
     const body = document.createElement('div');
-    body.style.cssText = 'max-height:292px;overflow:auto;';
+    body.dataset['testid'] = `${name}-panel-body`;
+    body.style.cssText = `max-height:${layout.bodyMaxHeight};overflow:auto;box-sizing:border-box;`;
     attachBody(body);
     panel.appendChild(body);
-    const closeBtn = createCloseButton();
+    const closeBtn = createCloseButton(this.isTouch);
     closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
     panel.appendChild(closeBtn);
     document.body.appendChild(panel);

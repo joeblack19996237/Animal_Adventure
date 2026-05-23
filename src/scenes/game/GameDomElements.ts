@@ -1,3 +1,5 @@
+import { closeButtonSize } from '../../layout/gameUiLayout';
+
 export function createTextButton(text: string): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.textContent = text;
@@ -5,12 +7,14 @@ export function createTextButton(text: string): HTMLButtonElement {
   return btn;
 }
 
-export function createCloseButton(): HTMLButtonElement {
+export function createCloseButton(isTouch = false): HTMLButtonElement {
   const btn = document.createElement('button');
+  const size = closeButtonSize(isTouch);
   btn.type = 'button';
   btn.ariaLabel = 'Close';
   btn.style.cssText =
-    "position:absolute;right:24px;top:20px;width:34px;height:34px;border:0;background:transparent url('/assets/images/UI/ui_close_x_button.png') center/contain no-repeat;cursor:pointer;";
+    `position:absolute;right:22px;top:18px;width:${size}px;height:${size}px;border:0;` +
+    "background:transparent url('/assets/images/UI/ui_close_x_button.png') center/contain no-repeat;cursor:pointer;";
   return btn;
 }
 

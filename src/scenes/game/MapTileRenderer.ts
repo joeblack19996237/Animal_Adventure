@@ -65,6 +65,10 @@ export function preloadInitialForegroundTiles(
   }
 }
 
+export function foregroundDepthForTile(tile: MapTile): number {
+  return tile.y + tile.height + 10;
+}
+
 export class MapTileRenderer {
   private readonly renderedTiles = new Set<string>();
   private readonly renderedForegroundTiles = new Set<string>();
@@ -72,7 +76,6 @@ export class MapTileRenderer {
   private readonly loadingForegroundTiles = new Set<string>();
   private readonly foregroundTiles: Map<string, ForegroundTile>;
   private readonly lockedOverlays: Phaser.GameObjects.GameObject[] = [];
-  private readonly foregroundDepth: number;
   private readonly lockedOverlayDepth: number;
   private loaderActive = false;
 
@@ -82,7 +85,6 @@ export class MapTileRenderer {
     foregroundManifest: ForegroundTileManifest,
   ) {
     this.foregroundTiles = buildForegroundTileLookup(foregroundManifest);
-    this.foregroundDepth = this.manifest.map_height + 500;
     this.lockedOverlayDepth = this.manifest.map_height + 1000;
   }
 
@@ -168,7 +170,7 @@ export class MapTileRenderer {
     if (this.renderedForegroundTiles.has(key) || !this.scene.textures.exists(key)) return;
     this.scene.add
       .image(tile.x + tile.width / 2, tile.y + tile.height / 2, key)
-      .setDepth(this.foregroundDepth);
+      .setDepth(foregroundDepthForTile(tile));
     this.renderedForegroundTiles.add(key);
   }
 }

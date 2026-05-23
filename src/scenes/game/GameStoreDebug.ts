@@ -6,7 +6,7 @@ export interface GameStoreSnapshot {
   worldItems: unknown[];
   inventory: unknown[];
   equipment: unknown[];
-  player: { coins: number; level: number };
+  player: { coins: number; level: number; x: number; y: number; direction: string };
 }
 
 const DEBUG_STORE_KEY = '__gameStore';
